@@ -1,0 +1,27 @@
+# permissions for end users to edit imageresourcepolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: imageresourcepolicy-editor-role
+rules:
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies/status
+  verbs:
+  - get

@@ -1,0 +1,23 @@
+# permissions for end users to view resourcetemplates.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: resourcetemplate-viewer-role
+rules:
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - resourcetemplates
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - resourcetemplates/status
+  verbs:
+  - get

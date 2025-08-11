@@ -1,0 +1,18 @@
+# Configuration for deploying both controllers separately
+namespace: image-resource-controller-system
+
+# Create the namespace if it doesn't exist
+resources:
+- namespace.yaml
+- ../crd
+- ../rbac
+- detection-manager.yaml
+- creation-manager.yaml
+- metrics-services.yaml
+
+# Common labels applied to all resources
+labels:
+- includeSelectors: true
+  pairs:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-detection-controller
+  labels:
+    control-plane: image-detection-controller
+    app.kubernetes.io/component: detection
+spec:
+  selector:
+    matchLabels:
+      control-plane: image-detection-controller
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: image-detection-controller
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - /manager
+        args:
+          - --leader-elect
+          - --health-probe-bind-address=:8081
+          - --metrics-bind-address=:8080
+        image: image-detection-controller:latest
+        imagePullPolicy: Never
+        name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        ports:
+        - containerPort: 8080
+          name: metrics
+          protocol: TCP
+        - containerPort: 8081
+          name: health
+          protocol: TCP
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10

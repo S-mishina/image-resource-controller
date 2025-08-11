@@ -1,0 +1,18 @@
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: imageresourcepolicy-sample
+spec:
+  ecrRepository:
+    repositoryName: "my-app"
+    region: "us-east-1"
+  policy:
+    semver:
+      range: ">=1.0.0"
+  templateRef:
+    name: "my-app-template"
+  ttlDays: 14
+  suspend: false

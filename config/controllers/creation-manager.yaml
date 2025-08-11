@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-creation-controller
+  labels:
+    control-plane: resource-creation-controller
+    app.kubernetes.io/component: creation
+spec:
+  selector:
+    matchLabels:
+      control-plane: resource-creation-controller
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        control-plane: resource-creation-controller
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - /manager
+        args:
+          - --leader-elect
+          - --health-probe-bind-address=:8083
+          - --metrics-bind-address=:8082
+        image: resource-creation-controller:latest
+        imagePullPolicy: Never
+        name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8083
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8083
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        ports:
+        - containerPort: 8082
+          name: metrics
+          protocol: TCP
+        - containerPort: 8083
+          name: health
+          protocol: TCP
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10
