@@ -1,0 +1,9 @@
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: imageresourcepolicy-sample
+spec:
+  # TODO(user): Add fields here

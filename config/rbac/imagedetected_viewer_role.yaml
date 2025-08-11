@@ -1,0 +1,23 @@
+# permissions for end users to view imagedetecteds.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: imagedetected-viewer-role
+rules:
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imagedetecteds
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imagedetecteds/status
+  verbs:
+  - get

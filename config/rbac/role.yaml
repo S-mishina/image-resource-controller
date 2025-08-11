@@ -1,0 +1,84 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imagedetecteds
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imagedetecteds/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imagedetecteds/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - resourcetemplates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - resourcetemplates/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - resourcetemplates/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -1,0 +1,23 @@
+# permissions for end users to view imageresourcepolicies.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: image-resource-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: imageresourcepolicy-viewer-role
+rules:
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - automation.gitops.io
+  resources:
+  - imageresourcepolicies/status
+  verbs:
+  - get
