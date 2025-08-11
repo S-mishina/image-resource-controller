@@ -20,22 +20,104 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// ECRRepository defines ECR repository configuration
+type ECRRepository struct {
+	// RepositoryName is the ECR repository name (e.g., "my-service" or "namespace/my-service")
+	// +kubebuilder:validation:Required
+	RepositoryName string `json:"repositoryName"`
+
+	// Region is the AWS region (e.g., "us-east-1")
+	// +kubebuilder:validation:Required
+	Region string `json:"region"`
+}
+
+// PolicySpec defines the image selection policy
+type PolicySpec struct {
+	// Semver policy for selecting images by semantic version
+	// +optional
+	Semver *SemverPolicy `json:"semver,omitempty"`
+
+	// Alphabetical policy for selecting images by alphabetical order
+	// +optional
+	Alphabetical *AlphabeticalPolicy `json:"alphabetical,omitempty"`
+
+	// Pattern policy for selecting images by regular expression
+	// +optional
+	Pattern *PatternPolicy `json:"pattern,omitempty"`
+}
+
+// SemverPolicy defines semantic version-based selection
+type SemverPolicy struct {
+	// Range specifies the semver range (e.g., ">=1.0.0")
+	// +kubebuilder:validation:Required
+	Range string `json:"range"`
+}
+
+// AlphabeticalPolicy defines alphabetical order-based selection
+type AlphabeticalPolicy struct {
+	// Order specifies the sorting order ("asc" or "desc")
+	// +kubebuilder:validation:Enum=asc;desc
+	// +kubebuilder:default="asc"
+	Order string `json:"order,omitempty"`
+}
+
+// PatternPolicy defines regex pattern-based selection
+type PatternPolicy struct {
+	// Regex specifies the regular expression pattern
+	// +kubebuilder:validation:Required
+	Regex string `json:"regex"`
+}
+
+// SecretRef defines a reference to a Secret resource
+type SecretRef struct {
+	// Name of the Secret resource
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+}
+
+// AWSAuthConfig defines AWS authentication configuration
+type AWSAuthConfig struct {
+	// SecretRef for AWS credentials (optional)
+	// +optional
+	SecretRef *SecretRef `json:"secretRef,omitempty"`
+
+	// RoleArn for IAM role-based authentication (optional)
+	// +optional
+	RoleArn string `json:"roleArn,omitempty"`
+}
 
 // ImageResourcePolicySpec defines the desired state of ImageResourcePolicy
 type ImageResourcePolicySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ECRRepository defines the ECR repository to monitor
+	// +kubebuilder:validation:Required
+	ECRRepository ECRRepository `json:"ecrRepository"`
 
-	// Foo is an example field of ImageResourcePolicy. Edit imageresourcepolicy_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Policy defines the image selection criteria
+	// +kubebuilder:validation:Required
+	Policy PolicySpec `json:"policy"`
+
+	// AWS defines AWS authentication configuration (optional)
+	// +optional
+	AWS *AWSAuthConfig `json:"aws,omitempty"`
+
+	// Suspend stops the controller from processing this policy
+	// +kubebuilder:default=false
+	Suspend bool `json:"suspend,omitempty"`
 }
 
 // ImageResourcePolicyStatus defines the observed state of ImageResourcePolicy
 type ImageResourcePolicyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// LastScannedTime is the last time the ECR repository was scanned
+	// +optional
+	LastScannedTime *metav1.Time `json:"lastScannedTime,omitempty"`
+
+	// ObservedGeneration is the last generation observed by the controller
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true

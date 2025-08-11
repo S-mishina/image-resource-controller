@@ -20,22 +20,64 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// GitRepositoryConfig defines Git repository configuration for Resource Creation Controller
+type GitRepositoryConfig struct {
+	// URL of the Git repository
+	// +kubebuilder:validation:Required
+	URL string `json:"url"`
+
+	// Branch to use (default: "main")
+	// +kubebuilder:default="main"
+	Branch string `json:"branch,omitempty"`
+
+	// Path within the repository (default: "./")
+	// +kubebuilder:default="./"
+	Path string `json:"path,omitempty"`
+
+	// SecretRef for Git authentication
+	// +optional
+	SecretRef *SecretRef `json:"secretRef,omitempty"`
+}
+
+// ValidationConfig defines template validation settings
+type ValidationConfig struct {
+	// DryRun enables dry-run validation before applying templates
+	// +kubebuilder:default=true
+	DryRun bool `json:"dryRun,omitempty"`
+}
 
 // ResourceTemplateSpec defines the desired state of ResourceTemplate
 type ResourceTemplateSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Template is the Go template string for generating Kubernetes resources
+	// +kubebuilder:validation:Required
+	Template string `json:"template"`
 
-	// Foo is an example field of ResourceTemplate. Edit resourcetemplate_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Variables contains additional template variables (optional)
+	// +optional
+	Variables map[string]string `json:"variables,omitempty"`
+
+	// GitRepository defines Git repository configuration for this template
+	// +kubebuilder:validation:Required
+	GitRepository GitRepositoryConfig `json:"gitRepository"`
+
+	// Validation defines template validation settings
+	// +optional
+	Validation *ValidationConfig `json:"validation,omitempty"`
 }
 
 // ResourceTemplateStatus defines the observed state of ResourceTemplate
 type ResourceTemplateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// LastValidated is the last time the template was validated
+	// +optional
+	LastValidated *metav1.Time `json:"lastValidated,omitempty"`
+
+	// ObservedGeneration is the last generation observed by the controller
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -20,22 +20,70 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// SourcePolicyRef defines a reference to the source ImageResourcePolicy
+type SourcePolicyRef struct {
+	// Name of the source ImageResourcePolicy
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Namespace of the source ImageResourcePolicy
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
 
 // ImageDetectedSpec defines the desired state of ImageDetected
 type ImageDetectedSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ImageName is the base name of the image (e.g., "web-app")
+	// +kubebuilder:validation:Required
+	ImageName string `json:"imageName"`
 
-	// Foo is an example field of ImageDetected. Edit imagedetected_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// ImageTag is the tag of the detected image (e.g., "v1.2.3")
+	// +kubebuilder:validation:Required
+	ImageTag string `json:"imageTag"`
+
+	// ImageDigest is the digest of the detected image
+	// +kubebuilder:validation:Required
+	ImageDigest string `json:"imageDigest"`
+
+	// FullImageName is the complete ECR image URL
+	// +kubebuilder:validation:Required
+	FullImageName string `json:"fullImageName"`
+
+	// SourcePolicy references the ImageResourcePolicy that detected this image
+	// +kubebuilder:validation:Required
+	SourcePolicy SourcePolicyRef `json:"sourcePolicy"`
+
+	// DetectedAt is the time when this image was detected
+	// +kubebuilder:validation:Required
+	DetectedAt metav1.Time `json:"detectedAt"`
 }
 
 // ImageDetectedStatus defines the observed state of ImageDetected
 type ImageDetectedStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of an object's state
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Phase represents the current phase of the ImageDetected lifecycle
+	// +kubebuilder:validation:Enum=Pending;Processing;Completed;Failed
+	// +kubebuilder:default="Pending"
+	Phase string `json:"phase,omitempty"`
+
+	// ResourceCreated indicates whether the resource has been created by Resource Creation Controller
+	// +kubebuilder:default=false
+	ResourceCreated bool `json:"resourceCreated,omitempty"`
+
+	// GitCommitSHA is the SHA of the Git commit created by Resource Creation Controller
+	// +optional
+	GitCommitSHA string `json:"gitCommitSHA,omitempty"`
+
+	// ProcessedAt is the time when the resource creation was completed
+	// +optional
+	ProcessedAt *metav1.Time `json:"processedAt,omitempty"`
+
+	// ObservedGeneration is the last generation observed by the controller
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true
