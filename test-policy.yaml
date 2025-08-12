@@ -1,0 +1,13 @@
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  name: test-policy
+  namespace: default
+spec:
+  ecrRepository:
+    repositoryName: "nginx"  # 公開されている一般的なイメージ名でテスト
+    region: "us-east-1"
+  policy:
+    alphabetical:
+      order: "desc"  # 最新から順番に
+  suspend: false
