@@ -13,16 +13,30 @@ This Operator consists of two independent controllers:
 
 ```mermaid
 graph TB
-    ECR[AWS ECR] --> DM[Detection Manager]
-    DM --> ID[ImageDetected]
-    ID --> CM[Creation Manager]
-    RT[ResourceTemplate] --> CM
-    CM -->|Scan for Existing Resources| K8s[Kubernetes Cluster]
+    ECR[AWS ECR]
+    K8s[Kubernetes Cluster]
+    
+    DM[Detection Manager] -->|Scan| ECR
+    DM -.->|Read| IRP[ImageResourcePolicy]
+    DM -->|Create| ID[ImageDetected]
+    
+    subgraph K8s
+        IRP
+        ID
+        RT[ResourceTemplate]
+    end
+    
+    CM[Creation Manager] -.->|Watch| ID
+    CM -.->|Read| RT
+    CM -->|Update Status| ID
+    CM -->|TTL Cleanup| ID
+    CM -->|Scan Existing Resources| K8s
     CM -->|Check Duplicate| DECISION{Image Already Exists?}
+    
     DECISION -->|Yes| SKIP[Skip Processing]
     DECISION -->|No| GIT[Git Repository]
-    GIT --> GitOps[GitOps Workflow]
-    GitOps --> K8s
+    
+    GIT -->|GitOps Deploy| K8s
     
     style DECISION fill:#e1f5fe
     style SKIP fill:#fff3e0
