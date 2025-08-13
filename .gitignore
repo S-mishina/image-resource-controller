@@ -7,11 +7,16 @@
 bin/*
 Dockerfile.cross
 
+# Built binaries (avoid committing compiled executables)
+creation
+detection
+
 # Test binary, built with `go test -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+cover.out
 
 # Go workspace file
 go.work
@@ -26,6 +31,10 @@ go.work
 *.swo
 *~
 
+# Temporary files and logs in scripts
 sample/*
 scripts/*
+
+# Distribution files
 dist/*
+
