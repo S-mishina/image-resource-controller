@@ -177,8 +177,13 @@ func (g *Operations) CloneAndCommitFiles(ctx context.Context, repoURL, branch st
 	}
 
 	if !hasChanges {
-		logger.Info("No changes detected, skipping commit")
+		logger.Info("No changes detected in repository, skipping commit and push operation",
+			"repoURL", repoURL,
+			"branch", branch,
+			"filesProcessed", len(files),
+			"reason", "All files already exist with identical content")
 		result.Success = true
+		result.FilesChanged = 0
 		return result, nil
 	}
 

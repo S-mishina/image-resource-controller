@@ -90,7 +90,7 @@ func (r *ImageDetectedReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Check if image already exists in cluster
 	fullImageName := fmt.Sprintf("%s:%s", imageDetected.Spec.FullImageName, imageDetected.Spec.ImageTag)
-	exists, _, err := r.ExistenceChecker.CheckImageExists(ctx, fullImageName)
+	exists, usage, err := r.ExistenceChecker.CheckImageExists(ctx, fullImageName)
 	if err != nil {
 		logger.Error(err, "Failed to check image existence")
 		if updateErr := r.updatePhase(ctx, &imageDetected, "Failed", fmt.Sprintf("Failed to check image existence: %v", err)); updateErr != nil {
@@ -100,7 +100,22 @@ func (r *ImageDetectedReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if exists {
-		logger.Info("Image already exists in cluster, skipping resource creation", "image", fullImageName)
+		logger.Info("Image already exists in cluster, skipping resource creation and Git operations",
+			"image", fullImageName,
+			"imageName", imageDetected.Spec.ImageName,
+			"imageTag", imageDetected.Spec.ImageTag,
+			"existingResourcesCount", len(usage),
+			"reason", "Duplicate resource creation prevented - image already deployed")
+
+		// Log details about existing resources
+		for _, resource := range usage {
+			logger.Info("Found existing resource using this image",
+				"resourceKind", resource.Kind,
+				"resourceName", resource.Name,
+				"resourceNamespace", resource.Namespace,
+				"containerName", resource.Container)
+		}
+
 		if err := r.updatePhase(ctx, &imageDetected, "Completed", "Image already exists in cluster"); err != nil {
 			logger.Error(err, "Failed to update phase to Completed")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, err
