@@ -1,100 +1,398 @@
-# image-resource-controller
-// TODO(user): Add simple overview of use/purpose
+# Image Resource Controller
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Image Resource Controller is a Kubernetes Operator that automatically detects container images from AWS ECR, generates Kubernetes resources, and commits them to Git repositories. It provides complete automation for container image updates through GitOps workflow integration.
 
-## Getting Started
+## Overview
 
-### Prerequisites
-- go version v1.22.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+This Operator consists of two independent controllers:
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+- **Detection Manager**: Monitors ECR to detect images and creates `ImageDetected` resources
+- **Creation Manager**: Generates Kubernetes manifests from detected images and commits to Git repositories
 
-```sh
-make docker-build docker-push IMG=<some-registry>/image-resource-controller:tag
+## Architecture
+
+```mermaid
+graph TB
+    ECR[AWS ECR] --> DM[Detection Manager]
+    DM --> ID[ImageDetected]
+    ID --> CM[Creation Manager]
+    RT[ResourceTemplate] --> CM
+    CM --> GIT[Git Repository]
+    GIT --> GitOps[GitOps Workflow]
+    GitOps --> K8s[Kubernetes Cluster]
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+## Key Features
 
-**Install the CRDs into the cluster:**
+### Image Detection
 
-```sh
+- **Flexible Pattern Matching**
+  - Repository patterns: `team-a/*`, `service-*`
+  - Image name patterns: `nginx-*`, `*-service`
+  - Combined patterns: `team-a/*:v*`, `*/nginx:stable-*`
+
+- **Advanced Image Selection Policies**
+  - Semantic version range specification (`>=1.0.0`, `~1.2.0`)
+  - Alphabetical sorting (ascending/descending)
+  - Regular expression pattern matching
+
+- **Efficient Scanning**
+  - Concurrent execution control
+  - Timeout configuration
+  - Per-repository or cross-repository processing options
+
+### Resource Generation
+
+- **Go Template Engine** for flexible manifest generation
+- **Duplicate checking** for idempotency
+- **Existing resource detection** to prevent unnecessary deployments
+
+### Git Integration
+
+- **Multiple authentication methods** (SSH, Token, Basic auth)
+- **Automatic commits** (message generation, file management)
+- **Error handling** and retry functionality
+
+### Operational Features
+
+- **TTL-based automatic cleanup** (default 7 days)
+- **Detailed status management** and Condition updates
+- **Prometheus metrics** support
+- **Health check** functionality
+
+## Custom Resource Definitions
+
+### ImageResourcePolicy
+
+Defines ECR monitoring settings and image selection policies.
+
+```yaml
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  name: webapp-policy
+  namespace: default
+spec:
+  ecrRepository:
+    region: us-east-1
+    repositoryPattern: "webapp/*"  # webapp/frontend, webapp/backend, etc.
+    maxRepositories: 10
+    scanTimeout: "5m"
+  
+  policy:
+    perRepository: false  # Process across repositories
+    semver:
+      range: ">=1.0.0"    # Semantic version range
+  
+  templateRef:
+    name: webapp-template
+    namespace: default
+  
+  aws:
+    roleArn: "arn:aws:iam::123456789012:role/ECRReadRole"  # Optional
+  
+  ttlDays: 7  # Auto cleanup after 7 days
+```
+
+### ResourceTemplate
+
+Defines Kubernetes resource templates and Git configuration.
+
+```yaml
+apiVersion: automation.gitops.io/v1beta1
+kind: ResourceTemplate
+metadata:
+  name: webapp-template
+  namespace: default
+spec:
+  template: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: {{ .ServiceName }}
+      namespace: {{ .Namespace | default "default" }}
+      labels:
+        app: {{ .ServiceName }}
+        version: {{ .ImageTag }}
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: {{ .ServiceName }}
+      template:
+        metadata:
+          labels:
+            app: {{ .ServiceName }}
+            version: {{ .ImageTag }}
+        spec:
+          containers:
+          - name: {{ .ServiceName }}
+            image: {{ .FullImageName }}
+            ports:
+            - containerPort: 8080
+            env:
+            - name: IMAGE_TAG
+              value: "{{ .ImageTag }}"
+            - name: IMAGE_DIGEST
+              value: "{{ .ImageDigest }}"
+  
+  gitRepository:
+    url: "https://github.com/your-org/k8s-manifests.git"
+    branch: "main"
+    path: "./applications"
+    secretRef:
+      name: git-credentials  # GitHub token or SSH key
+  
+  variables:
+    namespace: "production"
+    environment: "prod"
+```
+
+### ImageDetected
+
+Holds information about detected images (auto-generated).
+
+```yaml
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageDetected
+metadata:
+  name: webapp-frontend-v1-2-3-abc12345
+  namespace: default
+spec:
+  imageName: webapp-frontend
+  imageTag: v1.2.3
+  imageDigest: sha256:abc123...
+  fullImageName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/webapp/frontend:v1.2.3
+  sourcePolicy:
+    name: webapp-policy
+    namespace: default
+  detectedAt: "2025-01-13T14:00:00Z"
+status:
+  phase: Completed
+  resourceCreated: true
+  gitCommitSHA: "def456..."
+  processedAt: "2025-01-13T14:05:00Z"
+```
+
+## Setup
+
+### Prerequisites
+
+- Kubernetes v1.11.3+
+- Go 1.23.0+
+- Docker 17.03+
+- Access permissions to AWS ECR
+
+### Installation
+
+- **Install CRDs**
+
+```bash
 make install
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+- **Deploy Controllers**
 
-```sh
-make deploy IMG=<some-registry>/image-resource-controller:tag
+```bash
+# Build and push image
+make docker-build docker-push IMG=your-registry/image-resource-controller:latest
+
+# Deploy Detection Manager
+make deploy-detection IMG=your-registry/image-resource-controller:latest
+
+# Deploy Creation Manager
+make deploy-creation IMG=your-registry/image-resource-controller:latest
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+### AWS Authentication Setup
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+#### Method 1: Using IAM Role
 
-```sh
-kubectl apply -k config/samples/
+```yaml
+spec:
+  aws:
+    roleArn: "arn:aws:iam::123456789012:role/ECRReadRole"
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+#### Method 2: Using Secret
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
-kubectl delete -k config/samples/
+```bash
+kubectl create secret generic aws-credentials \
+  --from-literal=accessKeyId=YOUR_ACCESS_KEY \
+  --from-literal=secretAccessKey=YOUR_SECRET_KEY
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
-
-```sh
-make uninstall
+```yaml
+spec:
+  aws:
+    secretRef:
+      name: aws-credentials
 ```
 
-**UnDeploy the controller from the cluster:**
+### Git Authentication Setup
 
-```sh
-make undeploy
+#### GitHub Token
+
+```bash
+kubectl create secret generic git-credentials \
+  --from-literal=token=ghp_your_github_token
 ```
 
-## Project Distribution
+#### SSH Key
 
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/image-resource-controller:tag
+```bash
+kubectl create secret generic git-credentials \
+  --from-file=ssh-privatekey=~/.ssh/id_rsa \
+  --from-literal=ssh-passphrase=your_passphrase
 ```
 
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
+## Usage Examples
 
-2. Using the installer
+### 1. Single Repository Monitoring
 
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/image-resource-controller/<tag or branch>/dist/install.yaml
+```yaml
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  name: nginx-policy
+spec:
+  ecrRepository:
+    region: us-east-1
+    repositoryPattern: "nginx-app"
+  policy:
+    alphabetical:
+      order: "desc"  # Select latest tag
+  templateRef:
+    name: nginx-template
 ```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+### 2. Semantic Versioning
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
+```yaml
+spec:
+  policy:
+    semver:
+      range: "~1.2.0"  # Select latest in 1.2.x series
+```
 
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+### 3. Per-Repository Processing
+
+```yaml
+spec:
+  policy:
+    perRepository: true  # Apply policy individually per repository
+  ecrRepository:
+    repositoryPattern: "microservices/*"
+```
+
+### 4. Complex Template Example
+
+```yaml
+spec:
+  template: |
+    apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: {{ .ServiceName }}-{{ .ImageTag | replace "." "-" }}
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: {{ .GitRepoURL }}
+        targetRevision: HEAD
+        path: apps/{{ .ServiceName }}
+        helm:
+          parameters:
+          - name: image.tag
+            value: {{ .ImageTag }}
+          - name: image.repository
+            value: {{ .ImageRepository }}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: {{ .Namespace }}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+```
+
+## Monitoring & Troubleshooting
+
+### Checking Logs
+
+```bash
+# Detection Manager logs
+kubectl logs -n image-resource-controller-system deployment/detection-manager
+
+# Creation Manager logs  
+kubectl logs -n image-resource-controller-system deployment/creation-manager
+```
+
+### Status Verification
+
+```bash
+# Check policy status
+kubectl get imageresourcepolicy -o wide
+
+# Check detected images
+kubectl get imagedetected
+
+# Detailed status check
+kubectl describe imageresourcepolicy webapp-policy
+```
+
+### Common Issues
+
+#### ECR Authentication Errors
+
+```bash
+# Verify AWS authentication
+aws ecr describe-repositories --region us-east-1
+
+# Check IAM role permissions
+aws sts assume-role --role-arn arn:aws:iam::123456789012:role/ECRReadRole
+```
+
+#### Git Authentication Errors
+
+```bash
+# Check secret
+kubectl get secret git-credentials -o yaml
+
+# Test Git connection
+ssh -T git@github.com
+```
+
+## Development
+
+### Local Development
+
+```bash
+# Download dependencies
+go mod download
+
+# Run tests
+make test
+
+# Run locally (Detection Manager)
+go run cmd/detection/main.go
+
+# Run locally (Creation Manager)
+go run cmd/creation/main.go
+```
+
+### Testing
+
+```bash
+# Unit tests
+make test
+
+# E2E tests
+make test-e2e
+
+# Coverage check
+make test-coverage
+```
 
 ## License
 
@@ -112,3 +410,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+## Contributing
+
+1. Fork this repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## Support
+
+- Issues: [GitHub Issues](https://github.com/S-mishina/image-resource-controller/issues)
+- Discussions: [GitHub Discussions](https://github.com/S-mishina/image-resource-controller/discussions)
+- Documentation: [Kubebuilder Documentation](https://book.kubebuilder.io/)
