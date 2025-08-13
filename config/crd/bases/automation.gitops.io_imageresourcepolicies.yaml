@@ -122,6 +122,15 @@ spec:
                 required:
                 - name
                 type: object
+              ttlDays:
+                default: 7
+                description: |-
+                  TTLDays specifies the number of days after which generated ImageDetected resources will be cleaned up
+                  Default is 7 days. Set to 0 to disable automatic cleanup.
+                format: int32
+                maximum: 365
+                minimum: 0
+                type: integer
             required:
             - ecrRepository
             - policy

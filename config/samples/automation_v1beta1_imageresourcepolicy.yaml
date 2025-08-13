@@ -6,4 +6,13 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: imageresourcepolicy-sample
 spec:
-  # TODO(user): Add fields here
+  ecrRepository:
+    repositoryName: "my-app"
+    region: "us-east-1"
+  policy:
+    semver:
+      range: ">=1.0.0"
+  templateRef:
+    name: "my-app-template"
+  ttlDays: 14
+  suspend: false

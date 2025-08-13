@@ -248,7 +248,16 @@ func (r *ImageResourcePolicyReconciler) executeECRScan(ctx context.Context, poli
 		}
 	}
 
-	// 5. Update status with scan results
+	// 5. Clean up expired ImageDetected resources
+	cleanedCount, err := r.cleanupExpiredImageDetected(ctx, policy)
+	if err != nil {
+		logger.Error(err, "Failed to cleanup expired ImageDetected resources")
+		// Continue even if cleanup fails
+	} else if cleanedCount > 0 {
+		logger.Info("Cleaned up expired ImageDetected resources", "cleanedCount", cleanedCount)
+	}
+
+	// 6. Update status with scan results
 	return r.updateStatusScanSuccess(ctx, policy, len(images), createdCount)
 }
 
@@ -506,6 +515,55 @@ func (r *ImageResourcePolicyReconciler) extractDigestShort(digest string) string
 	}
 	// Fallback
 	return "unknown"
+}
+
+// cleanupExpiredImageDetected removes ImageDetected resources that exceed the TTL
+func (r *ImageResourcePolicyReconciler) cleanupExpiredImageDetected(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy) (int, error) {
+	logger := log.FromContext(ctx)
+
+	// Skip cleanup if TTLDays is 0 (disabled)
+	if policy.Spec.TTLDays == 0 {
+		return 0, nil
+	}
+
+	// List all ImageDetected resources created by this policy
+	var imageDetectedList automationv1beta1.ImageDetectedList
+	listOpts := []client.ListOption{
+		client.InNamespace(policy.Namespace),
+		client.MatchingLabels{"automation.gitops.io/source": policy.Name},
+	}
+
+	if err := r.List(ctx, &imageDetectedList, listOpts...); err != nil {
+		return 0, fmt.Errorf("failed to list ImageDetected resources: %w", err)
+	}
+
+	// Calculate expiration cutoff time
+	cutoffTime := time.Now().AddDate(0, 0, -int(policy.Spec.TTLDays))
+	logger.Info("Cleaning up ImageDetected resources",
+		"ttlDays", policy.Spec.TTLDays,
+		"cutoffTime", cutoffTime.Format(time.RFC3339),
+		"totalResources", len(imageDetectedList.Items))
+
+	var cleanedCount int
+	for _, imageDetected := range imageDetectedList.Items {
+		// Check if resource is older than TTL
+		if imageDetected.Spec.DetectedAt.Time.Before(cutoffTime) {
+			logger.Info("Deleting expired ImageDetected resource",
+				"name", imageDetected.Name,
+				"detectedAt", imageDetected.Spec.DetectedAt.Time.Format(time.RFC3339),
+				"age", time.Since(imageDetected.Spec.DetectedAt.Time).String())
+
+			if err := r.Delete(ctx, &imageDetected); err != nil {
+				if !errors.IsNotFound(err) {
+					logger.Error(err, "Failed to delete expired ImageDetected resource", "name", imageDetected.Name)
+					continue
+				}
+			}
+			cleanedCount++
+		}
+	}
+
+	return cleanedCount, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

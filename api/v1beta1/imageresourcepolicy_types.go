@@ -118,6 +118,13 @@ type ImageResourcePolicySpec struct {
 	// Suspend stops the controller from processing this policy
 	// +kubebuilder:default=false
 	Suspend bool `json:"suspend,omitempty"`
+
+	// TTLDays specifies the number of days after which generated ImageDetected resources will be cleaned up
+	// Default is 7 days. Set to 0 to disable automatic cleanup.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=365
+	// +kubebuilder:default=7
+	TTLDays int32 `json:"ttlDays,omitempty"`
 }
 
 // ImageResourcePolicyStatus defines the observed state of ImageResourcePolicy
