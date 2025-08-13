@@ -37,7 +37,7 @@ var _ = Describe("ImageDetected Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default", // NOTE: Using default namespace for tests
 		}
 		imagedetected := &automationv1beta1.ImageDetected{}
 
@@ -67,7 +67,7 @@ var _ = Describe("ImageDetected Controller", func() {
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+			// NOTE: Cleanup logic to remove the resource instance after each test
 			resource := &automationv1beta1.ImageDetected{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())

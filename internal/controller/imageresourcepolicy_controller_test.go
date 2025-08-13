@@ -38,7 +38,7 @@ var _ = Describe("ImageResourcePolicy Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: "default", // NOTE: Using default namespace for tests
 		}
 		imageresourcepolicy := &automationv1beta1.ImageResourcePolicy{}
 
@@ -51,14 +51,14 @@ var _ = Describe("ImageResourcePolicy Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					// NOTE: Minimal spec for test - add ECR repository details as needed
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+			// NOTE: Cleanup logic to remove the resource instance after each test
 			resource := &automationv1beta1.ImageResourcePolicy{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
@@ -77,8 +77,8 @@ var _ = Describe("ImageResourcePolicy Controller", func() {
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			// NOTE: Add specific assertions for controller's reconciliation logic as needed
+			// Example: Verify status conditions or ImageDetected resource creation
 		})
 	})
 })

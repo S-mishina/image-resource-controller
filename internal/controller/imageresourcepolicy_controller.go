@@ -69,10 +69,12 @@ type ImageResourcePolicyReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the ImageResourcePolicy object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
+// NOTE: This controller implements ECR image scanning and ImageDetected resource creation
+// based on ImageResourcePolicy specifications. The reconcile loop handles:
+// - ECR authentication and repository scanning
+// - Image filtering based on policies (alphabetical, pattern, numeric, date)
+// - ImageDetected resource creation and management
+// - Per-repository processing for complex scanning scenarios
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.18.4/pkg/reconcile

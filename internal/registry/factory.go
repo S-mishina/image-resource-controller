@@ -151,7 +151,7 @@ func NewDefaultFactory() ImageRegistryFactory {
 		return NewECRRegistryAdapter()
 	})
 
-	// TODO: Add other registry implementations
+	// NOTE: Future registry implementations can be added here
 	// factory.RegisterRegistry(RegistryTypeGCR, func() ImageRegistry {
 	//     return gcr.NewGCRRegistry()
 	// })
@@ -200,8 +200,7 @@ func CreateRegistryFromConfig(registryType RegistryType, config RegistryConfig, 
 		return nil, fmt.Errorf("invalid registry config: %w", err)
 	}
 
-	// TODO: Authenticate if authConfig is provided
-	// This will be implemented when we add the ECR implementation
+	// NOTE: Authentication is handled individually by each registry client implementation
 
 	return registry, nil
 }

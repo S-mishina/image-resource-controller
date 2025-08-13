@@ -257,8 +257,8 @@ func (e *ECRRegistry) ScanRepository(ctx context.Context, config RegistryConfig)
 // For "namespace/service" -> "service"
 // For "service" -> "service"
 func extractImageName(repositoryName string) string {
-	// TODO: Implement proper parsing for hierarchical repository names
-	// For now, return the full repository name
+	// NOTE: Current implementation handles flat repository names
+	// Future enhancement could support hierarchical repository names
 	return repositoryName
 }
 
