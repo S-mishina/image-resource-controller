@@ -17,15 +17,14 @@ graph TB
     DM --> ID[ImageDetected]
     ID --> CM[Creation Manager]
     RT[ResourceTemplate] --> CM
-    K8s[Kubernetes Cluster] --> RC[Resource Checker]
-    RC --> CM
-    CM -->|Check Existing Resources| CM
-    CM -->|Skip if Duplicate| SKIP[Skip Processing]
-    CM -->|Create if New| GIT[Git Repository]
+    CM -->|Scan for Existing Resources| K8s[Kubernetes Cluster]
+    CM -->|Check Duplicate| DECISION{Image Already Exists?}
+    DECISION -->|Yes| SKIP[Skip Processing]
+    DECISION -->|No| GIT[Git Repository]
     GIT --> GitOps[GitOps Workflow]
     GitOps --> K8s
-
-    style RC fill:#e1f5fe
+    
+    style DECISION fill:#e1f5fe
     style SKIP fill:#fff3e0
 ```
 
