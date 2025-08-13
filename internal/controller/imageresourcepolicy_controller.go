@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -313,14 +314,39 @@ func (r *ImageResourcePolicyReconciler) createRegistryClient(policy *automationv
 		return nil, fmt.Errorf("failed to create ECR registry client: %w", err)
 	}
 
-	// TODO: Implement authentication configuration
-	// authConfig := registry.AuthConfig{
-	//     Type: registry.RegistryTypeECR,
-	//     // Configure AWS auth based on policy.Spec.AWS
-	// }
-	// if err := registryClient.Authenticate(ctx, authConfig); err != nil {
-	//     return nil, fmt.Errorf("failed to authenticate with ECR: %w", err)
-	// }
+	// Configure AWS authentication
+	authConfig := registry.AuthConfig{
+		Type: registry.RegistryTypeECR,
+		AWSConfig: &registry.AWSAuthConfig{
+			Region:                policy.Spec.ECRRepository.Region,
+			UseDefaultCredentials: true, // Default fallback
+		},
+	}
+
+	// Override with Secret-based authentication if specified
+	if policy.Spec.AWS != nil && policy.Spec.AWS.SecretRef != nil {
+		// Read AWS credentials from Kubernetes Secret
+		ctx := context.TODO()
+		awsCredentials, err := r.getAWSCredentialsFromSecret(ctx, policy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AWS credentials from secret: %w", err)
+		}
+
+		// Use explicit credentials instead of default chain
+		authConfig.AWSConfig = &registry.AWSAuthConfig{
+			Region:                policy.Spec.ECRRepository.Region,
+			AccessKeyID:           awsCredentials.AccessKeyID,
+			SecretAccessKey:       awsCredentials.SecretAccessKey,
+			SessionToken:          awsCredentials.SessionToken,
+			UseDefaultCredentials: false, // Use explicit credentials
+		}
+	}
+
+	// Authenticate with ECR
+	ctx := context.TODO()
+	if err := registryClient.Authenticate(ctx, authConfig); err != nil {
+		return nil, fmt.Errorf("failed to authenticate with ECR: %w", err)
+	}
 
 	return registryClient, nil
 }
@@ -698,6 +724,64 @@ func (r *ImageResourcePolicyReconciler) processImagesPerRepository(ctx context.C
 		"totalCreatedImageDetected", totalCreatedCount)
 
 	return totalCreatedCount, nil
+}
+
+// AWSCredentials represents AWS authentication credentials from Secret
+type AWSCredentials struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+}
+
+// getAWSCredentialsFromSecret reads AWS credentials from Kubernetes Secret
+func (r *ImageResourcePolicyReconciler) getAWSCredentialsFromSecret(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy) (*AWSCredentials, error) {
+	logger := log.FromContext(ctx)
+
+	if policy.Spec.AWS == nil || policy.Spec.AWS.SecretRef == nil {
+		return nil, fmt.Errorf("AWS secret reference not specified")
+	}
+
+	secretName := policy.Spec.AWS.SecretRef.Name
+	secretNamespace := policy.Namespace // Secret is in the same namespace as the policy
+
+	// Get the Secret from Kubernetes
+	secret := &corev1.Secret{}
+	secretKey := types.NamespacedName{
+		Name:      secretName,
+		Namespace: secretNamespace,
+	}
+
+	if err := r.Get(ctx, secretKey, secret); err != nil {
+		return nil, fmt.Errorf("failed to get secret %s/%s: %w", secretNamespace, secretName, err)
+	}
+
+	// Extract credentials from Secret data
+	credentials := &AWSCredentials{}
+
+	// Access Key ID is required
+	if accessKeyData, exists := secret.Data["accessKeyId"]; exists {
+		credentials.AccessKeyID = string(accessKeyData)
+	} else {
+		return nil, fmt.Errorf("accessKeyId not found in secret %s", secretName)
+	}
+
+	// Secret Access Key is required
+	if secretKeyData, exists := secret.Data["secretAccessKey"]; exists {
+		credentials.SecretAccessKey = string(secretKeyData)
+	} else {
+		return nil, fmt.Errorf("secretAccessKey not found in secret %s", secretName)
+	}
+
+	// Session Token is optional
+	if sessionTokenData, exists := secret.Data["sessionToken"]; exists {
+		credentials.SessionToken = string(sessionTokenData)
+	}
+
+	logger.Info("Successfully read AWS credentials from secret",
+		"secretName", secretName,
+		"hasSessionToken", credentials.SessionToken != "")
+
+	return credentials, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

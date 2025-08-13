@@ -27,6 +27,7 @@ spec:
           - --health-probe-bind-address=:8081
           - --metrics-bind-address=:8080
         image: image-detection-controller:latest
+        imagePullPolicy: Never
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
@@ -59,5 +60,5 @@ spec:
         - containerPort: 8081
           name: health
           protocol: TCP
-      serviceAccountName: image-resource-controller-controller-manager
+      serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
