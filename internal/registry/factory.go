@@ -107,6 +107,34 @@ func (a *ECRRegistryAdapter) HealthCheck(ctx context.Context) error {
 	return a.ecrRegistry.HealthCheck(ctx)
 }
 
+func (a *ECRRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error) {
+	ecrImages, err := a.ecrRegistry.ScanRepositoriesByPattern(ctx, region, pattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return ecrToRegistryImageInfo(ecrImages), nil
+}
+
+func (a *ECRRegistryAdapter) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
+	return a.ecrRegistry.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
+}
+
+func (a *ECRRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
+	ecrImages, err := a.ecrRegistry.ScanAllRepositoriesByImageName(ctx, region, imageNamePattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return ecrToRegistryImageInfo(ecrImages), nil
+}
+
+func (a *ECRRegistryAdapter) ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error) {
+	ecrImages, err := a.ecrRegistry.ScanByImagePattern(ctx, region, imagePattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return ecrToRegistryImageInfo(ecrImages), nil
+}
+
 // DefaultFactory is the default implementation of ImageRegistryFactory
 type DefaultFactory struct {
 	registries map[RegistryType]func() ImageRegistry

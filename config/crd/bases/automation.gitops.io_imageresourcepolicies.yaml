@@ -59,16 +59,47 @@ spec:
               ecrRepository:
                 description: ECRRepository defines the ECR repository to monitor
                 properties:
+                  imageNamePattern:
+                    description: |-
+                      ImageNamePattern for image name-based matching across all repositories (e.g., "nginx-base", "*-service")
+                      Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+                    type: string
+                  imagePattern:
+                    description: |-
+                      ImagePattern for combined repository and image pattern matching (e.g., "team-a/*:v*", "*/nginx:stable-*")
+                      Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+                    type: string
+                  maxConcurrentScans:
+                    default: 10
+                    description: 'MaxConcurrentScans limits the number of concurrent
+                      repository scans (default: 10)'
+                    format: int32
+                    maximum: 50
+                    minimum: 1
+                    type: integer
+                  maxRepositories:
+                    default: 50
+                    description: 'MaxRepositories limits the maximum number of repositories
+                      to scan (default: 50)'
+                    format: int32
+                    maximum: 200
+                    minimum: 1
+                    type: integer
                   region:
                     description: Region is the AWS region (e.g., "us-east-1")
                     type: string
-                  repositoryName:
-                    description: RepositoryName is the ECR repository name (e.g.,
-                      "my-service" or "namespace/my-service")
+                  repositoryPattern:
+                    description: |-
+                      RepositoryPattern for pattern-based repository matching (e.g., "team-a/*", "my-service")
+                      Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+                    type: string
+                  scanTimeout:
+                    default: 5m
+                    description: 'ScanTimeout specifies the timeout for the entire
+                      scan operation (default: "5m")'
                     type: string
                 required:
                 - region
-                - repositoryName
                 type: object
               policy:
                 description: Policy defines the image selection criteria

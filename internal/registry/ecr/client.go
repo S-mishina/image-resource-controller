@@ -77,6 +77,10 @@ type AWSAuthConfig struct {
 // ImageRegistry defines the interface for container registry operations
 type ImageRegistry interface {
 	ScanRepository(ctx context.Context, config RegistryConfig) ([]ImageInfo, error)
+	ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error)
+	FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error)
+	ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error)
+	ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error)
 	Authenticate(ctx context.Context, authConfig AuthConfig) error
 	GetRegistryType() RegistryType
 	ValidateConfig(config RegistryConfig) error
@@ -426,4 +430,416 @@ func (e *ECRRegistry) getAccountIDSafely(ctx context.Context) string {
 
 	// Final fallback to placeholder
 	return "123456789012"
+}
+
+// FindRepositoriesByPattern finds ECR repositories that match the given pattern
+func (e *ECRRegistry) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
+	// Initialize ECR client with default credentials if not already authenticated
+	if e.ecrClient == nil {
+		authConfig := AuthConfig{
+			Type: RegistryTypeECR,
+			AWSConfig: &AWSAuthConfig{
+				Region:                region,
+				UseDefaultCredentials: true,
+			},
+		}
+		if err := e.Authenticate(ctx, authConfig); err != nil {
+			return nil, fmt.Errorf("failed to authenticate with ECR: %w", err)
+		}
+	}
+
+	// Get all repositories with pagination
+	var allRepositories []string
+	var nextToken *string
+
+	for {
+		input := &ecr.DescribeRepositoriesInput{
+			MaxResults: aws.Int32(100), // ECR maximum per page
+			NextToken:  nextToken,
+		}
+
+		output, err := e.ecrClient.DescribeRepositories(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to describe repositories: %w", err)
+		}
+
+		// Extract repository names
+		for _, repo := range output.Repositories {
+			if repo.RepositoryName != nil {
+				allRepositories = append(allRepositories, *repo.RepositoryName)
+			}
+		}
+
+		// Check if we have more pages
+		nextToken = output.NextToken
+		if nextToken == nil {
+			break
+		}
+
+		// Safety limit to prevent infinite loops
+		if int32(len(allRepositories)) >= maxRepos*2 {
+			break
+		}
+	}
+
+	// Apply pattern matching
+	var matchedRepositories []string
+	for _, repoName := range allRepositories {
+		if matchRepositoryPattern(repoName, pattern) {
+			matchedRepositories = append(matchedRepositories, repoName)
+
+			// Respect maxRepos limit
+			if int32(len(matchedRepositories)) >= maxRepos {
+				break
+			}
+		}
+	}
+
+	return matchedRepositories, nil
+}
+
+// ScanRepositoriesByPattern scans multiple repositories matching a pattern and returns all images
+func (e *ECRRegistry) ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error) {
+	// Find matching repositories
+	repositories, err := e.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find repositories by pattern: %w", err)
+	}
+
+	// Scan each repository
+	var allImages []ImageInfo
+	for _, repoName := range repositories {
+		config := RegistryConfig{
+			Type:           RegistryTypeECR,
+			RepositoryName: repoName,
+			Region:         region,
+		}
+
+		images, err := e.ScanRepository(ctx, config)
+		if err != nil {
+			// Log error but continue with other repositories
+			// In a real implementation, you might want to use a proper logger
+			fmt.Printf("Warning: failed to scan repository %s: %v\n", repoName, err)
+			continue
+		}
+
+		allImages = append(allImages, images...)
+	}
+
+	return allImages, nil
+}
+
+// ScanAllRepositoriesByImageName scans ALL repositories to find images matching the image name pattern
+func (e *ECRRegistry) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
+	// Initialize ECR client if not already done
+	if e.ecrClient == nil {
+		authConfig := AuthConfig{
+			Type: RegistryTypeECR,
+			AWSConfig: &AWSAuthConfig{
+				Region:                region,
+				UseDefaultCredentials: true,
+			},
+		}
+		if err := e.Authenticate(ctx, authConfig); err != nil {
+			return nil, fmt.Errorf("failed to authenticate with ECR: %w", err)
+		}
+	}
+
+	// Get ALL repositories (not filtered by repository name)
+	allRepositories, err := e.getAllRepositories(ctx, maxRepos)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all repositories: %w", err)
+	}
+
+	// Scan each repository and filter by image name
+	var matchingImages []ImageInfo
+	scannedRepos := 0
+
+	for _, repoName := range allRepositories {
+		if int32(scannedRepos) >= maxRepos {
+			break
+		}
+
+		config := RegistryConfig{
+			Type:           RegistryTypeECR,
+			RepositoryName: repoName,
+			Region:         region,
+		}
+
+		images, err := e.ScanRepository(ctx, config)
+		if err != nil {
+			fmt.Printf("Warning: failed to scan repository %s: %v\n", repoName, err)
+			continue
+		}
+		scannedRepos++
+
+		// Filter images by image name pattern
+		for _, img := range images {
+			imageName := extractImageName(img.Name)
+			if matchImageNamePattern(imageName, imageNamePattern) {
+				matchingImages = append(matchingImages, img)
+			}
+		}
+	}
+
+	return matchingImages, nil
+}
+
+// getAllRepositories gets all ECR repositories with pagination
+func (e *ECRRegistry) getAllRepositories(ctx context.Context, maxRepos int32) ([]string, error) {
+	var allRepositories []string
+	var nextToken *string
+
+	for {
+		input := &ecr.DescribeRepositoriesInput{
+			MaxResults: aws.Int32(100), // ECR maximum per page
+			NextToken:  nextToken,
+		}
+
+		output, err := e.ecrClient.DescribeRepositories(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to describe repositories: %w", err)
+		}
+
+		// Extract repository names
+		for _, repo := range output.Repositories {
+			if repo.RepositoryName != nil {
+				allRepositories = append(allRepositories, *repo.RepositoryName)
+			}
+		}
+
+		// Check if we have more pages
+		nextToken = output.NextToken
+		if nextToken == nil {
+			break
+		}
+
+		// Safety limit to prevent infinite loops
+		if int32(len(allRepositories)) >= maxRepos*2 {
+			break
+		}
+	}
+
+	return allRepositories, nil
+}
+
+// matchImageNamePattern checks if an image name matches the given pattern
+func matchImageNamePattern(imageName, pattern string) bool {
+	// Handle exact match
+	if pattern == imageName {
+		return true
+	}
+
+	// Handle wildcard patterns
+	if strings.Contains(pattern, "*") {
+		return matchWildcard(imageName, pattern)
+	}
+
+	return false
+}
+
+// matchRepositoryPattern checks if a repository name matches the given pattern
+func matchRepositoryPattern(repoName, pattern string) bool {
+	// Handle exact match
+	if pattern == repoName {
+		return true
+	}
+
+	// Handle wildcard patterns
+	if strings.Contains(pattern, "*") {
+		return matchWildcard(repoName, pattern)
+	}
+
+	return false
+}
+
+// ScanByImagePattern scans repositories by combined repository:tag pattern
+func (e *ECRRegistry) ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error) {
+	// Parse the image pattern into repository and tag components
+	components, err := parseImagePattern(imagePattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse image pattern: %w", err)
+	}
+
+	// Initialize ECR client if not already done
+	if e.ecrClient == nil {
+		authConfig := AuthConfig{
+			Type: RegistryTypeECR,
+			AWSConfig: &AWSAuthConfig{
+				Region:                region,
+				UseDefaultCredentials: true,
+			},
+		}
+		if err := e.Authenticate(ctx, authConfig); err != nil {
+			return nil, fmt.Errorf("failed to authenticate with ECR: %w", err)
+		}
+	}
+
+	// Find repositories matching the repository pattern
+	repositories, err := e.FindRepositoriesByPattern(ctx, region, components.RepositoryPattern, maxRepos)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find repositories by pattern: %w", err)
+	}
+
+	// Scan each repository and filter by tag pattern
+	var matchingImages []ImageInfo
+	for _, repoName := range repositories {
+		config := RegistryConfig{
+			Type:           RegistryTypeECR,
+			RepositoryName: repoName,
+			Region:         region,
+		}
+
+		images, err := e.ScanRepository(ctx, config)
+		if err != nil {
+			fmt.Printf("Warning: failed to scan repository %s: %v\n", repoName, err)
+			continue
+		}
+
+		// Filter images by tag pattern
+		for _, img := range images {
+			if matchTagPattern(img.Tag, components.TagPattern) {
+				matchingImages = append(matchingImages, img)
+			}
+		}
+	}
+
+	return matchingImages, nil
+}
+
+// ImagePatternComponents represents the parsed components of an image pattern
+type ImagePatternComponents struct {
+	RepositoryPattern string
+	TagPattern        string
+}
+
+// parseImagePattern parses image pattern into repository and tag components
+func parseImagePattern(pattern string) (ImagePatternComponents, error) {
+	// Split on the first colon to separate repository:tag
+	parts := strings.SplitN(pattern, ":", 2)
+	if len(parts) != 2 {
+		return ImagePatternComponents{}, fmt.Errorf("invalid image pattern format, expected 'repository:tag' but got '%s'", pattern)
+	}
+
+	return ImagePatternComponents{
+		RepositoryPattern: parts[0],
+		TagPattern:        parts[1],
+	}, nil
+}
+
+// matchTagPattern checks if a tag matches the given pattern
+func matchTagPattern(tag, pattern string) bool {
+	// Handle exact match
+	if pattern == tag {
+		return true
+	}
+
+	// Handle wildcard patterns
+	if strings.Contains(pattern, "*") {
+		return matchWildcard(tag, pattern)
+	}
+
+	// Handle regex-like patterns (basic implementation)
+	if strings.Contains(pattern, "[") && strings.Contains(pattern, "]") {
+		return matchRegexPattern(tag, pattern)
+	}
+
+	return false
+}
+
+// matchRegexPattern implements basic regex-like pattern matching for tags
+func matchRegexPattern(tag, pattern string) bool {
+	// Simple implementation for common patterns like v[0-9]*, *-[a-z]*
+	// For now, handle basic character class patterns
+
+	// Handle v[0-9]* pattern
+	if pattern == "v[0-9]*" {
+		return strings.HasPrefix(tag, "v") && len(tag) > 1 && isDigit(tag[1])
+	}
+
+	// Handle v[0-9]+.[0-9]+.[0-9]+ pattern (semver)
+	if strings.Contains(pattern, "[0-9]+") {
+		// Basic semver pattern matching
+		if strings.HasPrefix(tag, "v") {
+			version := tag[1:] // Remove 'v' prefix
+			parts := strings.Split(version, ".")
+			if len(parts) == 3 {
+				for _, part := range parts {
+					if !isNumeric(part) {
+						return false
+					}
+				}
+				return true
+			}
+		}
+	}
+
+	// Add more regex patterns as needed
+	return false
+}
+
+// isDigit checks if a byte represents a digit
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
+}
+
+// isNumeric checks if a string contains only digits
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if !isDigit(s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// matchWildcard implements simple wildcard matching
+func matchWildcard(text, pattern string) bool {
+	// Split pattern by wildcards
+	parts := strings.Split(pattern, "*")
+
+	if len(parts) == 1 {
+		// No wildcards, exact match
+		return text == pattern
+	}
+
+	// Check if text starts with first part
+	if parts[0] != "" && !strings.HasPrefix(text, parts[0]) {
+		return false
+	}
+
+	// Check if text ends with last part
+	if parts[len(parts)-1] != "" && !strings.HasSuffix(text, parts[len(parts)-1]) {
+		return false
+	}
+
+	// For complex patterns with multiple wildcards, implement more sophisticated matching
+	// For now, handle simple cases like "team-a/*" or "*/service"
+	if len(parts) == 2 {
+		prefix := parts[0]
+		suffix := parts[1]
+
+		if prefix != "" && suffix != "" {
+			// Pattern like "team-*-service"
+			return strings.HasPrefix(text, prefix) && strings.HasSuffix(text, suffix) && len(text) >= len(prefix)+len(suffix)
+		} else if prefix != "" {
+			// Pattern like "team-a/*"
+			return strings.HasPrefix(text, prefix)
+		} else if suffix != "" {
+			// Pattern like "*/service"
+			return strings.HasSuffix(text, suffix)
+		}
+	}
+
+	// For more complex patterns, fall back to basic contains check
+	for _, part := range parts[1 : len(parts)-1] {
+		if part != "" && !strings.Contains(text, part) {
+			return false
+		}
+	}
+
+	return true
 }

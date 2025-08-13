@@ -94,7 +94,8 @@ func (r *ImageResourcePolicyReconciler) Reconcile(ctx context.Context, req ctrl.
 	logger.Info("Reconciling ImageResourcePolicy",
 		"name", policy.Name,
 		"namespace", policy.Namespace,
-		"repository", policy.Spec.ECRRepository.RepositoryName,
+		"pattern", policy.Spec.ECRRepository.GetPattern(),
+		"patternType", policy.Spec.ECRRepository.GetPatternType(),
 		"region", policy.Spec.ECRRepository.Region,
 		"generation", policy.Generation)
 
@@ -206,27 +207,58 @@ func (r *ImageResourcePolicyReconciler) removeCondition(conditions *[]metav1.Con
 func (r *ImageResourcePolicyReconciler) executeECRScan(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	logger.Info("Starting ECR scan", "repository", policy.Spec.ECRRepository.RepositoryName)
+	// 1. Validate ECR repository configuration
+	if err := policy.Spec.ECRRepository.Validate(); err != nil {
+		return r.updateStatusError(ctx, policy, fmt.Sprintf("Invalid ECR repository configuration: %v", err))
+	}
 
-	// 1. Create registry client
+	pattern := policy.Spec.ECRRepository.GetPattern()
+	patternType := policy.Spec.ECRRepository.GetPatternType()
+	logger.Info("Starting ECR pattern scan",
+		"pattern", pattern,
+		"patternType", patternType)
+
+	// 2. Create registry client
 	registryClient, err := r.createRegistryClient(policy)
 	if err != nil {
 		return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to create registry client: %v", err))
 	}
 
-	// 2. Scan repository for images
-	config := registry.RegistryConfig{
-		Type:           registry.RegistryTypeECR,
-		RepositoryName: policy.Spec.ECRRepository.RepositoryName,
-		Region:         policy.Spec.ECRRepository.Region,
+	// 3. Scan repositories by pattern
+	var images []registry.ImageInfo
+
+	maxRepos := policy.Spec.ECRRepository.MaxRepositories
+	if maxRepos == 0 {
+		maxRepos = 50 // default
 	}
 
-	images, err := registryClient.ScanRepository(ctx, config)
-	if err != nil {
-		return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to scan repository: %v", err))
+	switch patternType {
+	case "repository":
+		// Phase 1: Repository pattern-based scanning
+		images, err = registryClient.ScanRepositoriesByPattern(ctx, policy.Spec.ECRRepository.Region, pattern, maxRepos)
+		if err != nil {
+			return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to scan repositories by pattern: %v", err))
+		}
+
+	case "imageName":
+		// Phase 2: Image name pattern-based scanning across ALL repositories
+		images, err = registryClient.ScanAllRepositoriesByImageName(ctx, policy.Spec.ECRRepository.Region, pattern, maxRepos)
+		if err != nil {
+			return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to scan all repositories for image name pattern: %v", err))
+		}
+
+	case "image":
+		// Phase 3: Combined image pattern (repository:tag)
+		images, err = registryClient.ScanByImagePattern(ctx, policy.Spec.ECRRepository.Region, pattern, maxRepos)
+		if err != nil {
+			return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to scan by image pattern: %v", err))
+		}
+
+	default:
+		return r.updateStatusError(ctx, policy, fmt.Sprintf("Unknown pattern type '%s'", patternType))
 	}
 
-	logger.Info("Found images in repository", "count", len(images), "repository", policy.Spec.ECRRepository.RepositoryName)
+	logger.Info("Found images from pattern scan", "count", len(images), "pattern", pattern)
 
 	// 3. Apply policy filtering (simple implementation for now)
 	// TODO: Implement actual policy processing (semver, pattern, alphabetical)

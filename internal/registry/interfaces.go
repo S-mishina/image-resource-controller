@@ -132,6 +132,18 @@ type ImageRegistry interface {
 	// ScanRepository scans a repository and returns available images
 	ScanRepository(ctx context.Context, config RegistryConfig) ([]ImageInfo, error)
 
+	// ScanRepositoriesByPattern scans multiple repositories matching a pattern and returns all images
+	ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error)
+
+	// FindRepositoriesByPattern finds repositories that match the given pattern
+	FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error)
+
+	// ScanAllRepositoriesByImageName scans ALL repositories to find images matching the image name pattern
+	ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error)
+
+	// ScanByImagePattern scans repositories by combined repository:tag pattern
+	ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error)
+
 	// Authenticate performs authentication with the registry
 	Authenticate(ctx context.Context, authConfig AuthConfig) error
 

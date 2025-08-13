@@ -26,5 +26,6 @@ go.work
 *.swo
 *~
 
-sample/*.yaml
+sample/*
+scripts/*
 dist/*

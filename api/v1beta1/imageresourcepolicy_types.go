@@ -17,18 +17,48 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ECRRepository defines ECR repository configuration
 type ECRRepository struct {
-	// RepositoryName is the ECR repository name (e.g., "my-service" or "namespace/my-service")
-	// +kubebuilder:validation:Required
-	RepositoryName string `json:"repositoryName"`
-
 	// Region is the AWS region (e.g., "us-east-1")
 	// +kubebuilder:validation:Required
 	Region string `json:"region"`
+
+	// RepositoryPattern for pattern-based repository matching (e.g., "team-a/*", "my-service")
+	// Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+	// +optional
+	RepositoryPattern string `json:"repositoryPattern,omitempty"`
+
+	// ImageNamePattern for image name-based matching across all repositories (e.g., "nginx-base", "*-service")
+	// Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+	// +optional
+	ImageNamePattern string `json:"imageNamePattern,omitempty"`
+
+	// ImagePattern for combined repository and image pattern matching (e.g., "team-a/*:v*", "*/nginx:stable-*")
+	// Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+	// +optional
+	ImagePattern string `json:"imagePattern,omitempty"`
+
+	// MaxRepositories limits the maximum number of repositories to scan (default: 50)
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=200
+	// +kubebuilder:default=50
+	MaxRepositories int32 `json:"maxRepositories,omitempty"`
+
+	// MaxConcurrentScans limits the number of concurrent repository scans (default: 10)
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=50
+	// +kubebuilder:default=10
+	MaxConcurrentScans int32 `json:"maxConcurrentScans,omitempty"`
+
+	// ScanTimeout specifies the timeout for the entire scan operation (default: "5m")
+	// +kubebuilder:default="5m"
+	ScanTimeout string `json:"scanTimeout,omitempty"`
 }
 
 // PolicySpec defines the image selection policy
@@ -161,6 +191,78 @@ type ImageResourcePolicyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ImageResourcePolicy `json:"items"`
+}
+
+// Validate validates the ECRRepository configuration
+func (e *ECRRepository) Validate() error {
+	patterns := []string{e.RepositoryPattern, e.ImageNamePattern, e.ImagePattern}
+
+	nonEmpty := 0
+	for _, p := range patterns {
+		if p != "" {
+			nonEmpty++
+		}
+	}
+
+	if nonEmpty != 1 {
+		return fmt.Errorf("exactly one pattern type must be specified (repositoryPattern, imageNamePattern, or imagePattern)")
+	}
+
+	// Validate pattern syntax
+	if e.RepositoryPattern != "" {
+		if err := validateRepositoryPattern(e.RepositoryPattern); err != nil {
+			return fmt.Errorf("invalid repositoryPattern: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// validateRepositoryPattern validates repository pattern syntax
+func validateRepositoryPattern(pattern string) error {
+	if pattern == "" {
+		return fmt.Errorf("pattern cannot be empty")
+	}
+
+	// Prevent dangerous patterns
+	if pattern == "*" {
+		return fmt.Errorf("wildcard-only pattern '*' is not allowed for performance reasons")
+	}
+
+	// Basic pattern validation - could be enhanced with more sophisticated checks
+	if strings.Contains(pattern, "**") {
+		return fmt.Errorf("double wildcard '**' is not supported")
+	}
+
+	return nil
+}
+
+// GetPatternType returns the type of pattern being used
+func (e *ECRRepository) GetPatternType() string {
+	if e.RepositoryPattern != "" {
+		return "repository"
+	}
+	if e.ImageNamePattern != "" {
+		return "imageName"
+	}
+	if e.ImagePattern != "" {
+		return "image"
+	}
+	return "none"
+}
+
+// GetPattern returns the active pattern value
+func (e *ECRRepository) GetPattern() string {
+	if e.RepositoryPattern != "" {
+		return e.RepositoryPattern
+	}
+	if e.ImageNamePattern != "" {
+		return e.ImageNamePattern
+	}
+	if e.ImagePattern != "" {
+		return e.ImagePattern
+	}
+	return ""
 }
 
 func init() {
