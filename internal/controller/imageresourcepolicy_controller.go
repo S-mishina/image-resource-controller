@@ -260,23 +260,32 @@ func (r *ImageResourcePolicyReconciler) executeECRScan(ctx context.Context, poli
 
 	logger.Info("Found images from pattern scan", "count", len(images), "pattern", pattern)
 
-	// 3. Apply policy filtering (simple implementation for now)
-	// TODO: Implement actual policy processing (semver, pattern, alphabetical)
-	filteredImages := r.applyPolicyFilter(images, policy.Spec.Policy)
+	// 3. Apply policy filtering and create ImageDetected resources
+	var createdCount int
 
-	logger.Info("Images after policy filtering", "count", len(filteredImages))
-
-	// 4. Check for duplicates and create ImageDetected CRDs
-	createdCount := 0
-	for _, img := range filteredImages {
-		created, err := r.createImageDetectedIfNotExists(ctx, policy, img)
-		if err != nil {
-			logger.Error(err, "Failed to create ImageDetected", "image", img.Name, "tag", img.Tag)
-			// Continue with other images instead of failing completely
-			continue
+	if policy.Spec.Policy.PerRepository {
+		// Per-repository processing: apply policy to each repository separately
+		var perRepoErr error
+		createdCount, perRepoErr = r.processImagesPerRepository(ctx, policy, registryClient)
+		if perRepoErr != nil {
+			return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to process images per repository: %v", perRepoErr))
 		}
-		if created {
-			createdCount++
+	} else {
+		// Cross-repository processing: apply policy across all images (existing behavior)
+		filteredImages := r.applyPolicyFilter(images, policy.Spec.Policy)
+		logger.Info("Images after policy filtering", "count", len(filteredImages))
+
+		// Create ImageDetected CRDs for filtered images
+		for _, img := range filteredImages {
+			created, createErr := r.createImageDetectedIfNotExists(ctx, policy, img)
+			if createErr != nil {
+				logger.Error(createErr, "Failed to create ImageDetected", "image", img.Name, "tag", img.Tag)
+				// Continue with other images instead of failing completely
+				continue
+			}
+			if created {
+				createdCount++
+			}
 		}
 	}
 
@@ -596,6 +605,99 @@ func (r *ImageResourcePolicyReconciler) cleanupExpiredImageDetected(ctx context.
 	}
 
 	return cleanedCount, nil
+}
+
+// processImagesPerRepository processes images on a per-repository basis
+func (r *ImageResourcePolicyReconciler) processImagesPerRepository(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy, registryClient registry.ImageRegistry) (int, error) {
+	logger := log.FromContext(ctx)
+
+	pattern := policy.Spec.ECRRepository.GetPattern()
+	patternType := policy.Spec.ECRRepository.GetPatternType()
+	maxRepos := policy.Spec.ECRRepository.MaxRepositories
+	if maxRepos == 0 {
+		maxRepos = 50 // default
+	}
+
+	logger.Info("Starting per-repository processing",
+		"pattern", pattern,
+		"patternType", patternType,
+		"perRepository", true)
+
+	var totalCreatedCount int
+
+	switch patternType {
+	case "repository":
+		// Get list of matching repositories first
+		repositories, err := registryClient.FindRepositoriesByPattern(ctx, policy.Spec.ECRRepository.Region, pattern, maxRepos)
+		if err != nil {
+			return 0, fmt.Errorf("failed to find repositories by pattern: %w", err)
+		}
+
+		logger.Info("Found matching repositories", "count", len(repositories), "repositories", repositories)
+
+		// Process each repository separately
+		for _, repoName := range repositories {
+			repoImages, err := registryClient.ScanRepository(ctx, registry.RegistryConfig{
+				Type:           registry.RegistryTypeECR,
+				RepositoryName: repoName,
+				Region:         policy.Spec.ECRRepository.Region,
+			})
+			if err != nil {
+				logger.Error(err, "Failed to scan repository", "repository", repoName)
+				// Continue with other repositories instead of failing completely
+				continue
+			}
+
+			if len(repoImages) == 0 {
+				logger.Info("No images found in repository", "repository", repoName)
+				continue
+			}
+
+			// Apply policy to this repository's images
+			filteredImages := r.applyPolicyFilter(repoImages, policy.Spec.Policy)
+			logger.Info("Images after policy filtering for repository",
+				"repository", repoName,
+				"totalImages", len(repoImages),
+				"filteredImages", len(filteredImages))
+
+			// Create ImageDetected resources for filtered images
+			for _, img := range filteredImages {
+				created, createErr := r.createImageDetectedIfNotExists(ctx, policy, img)
+				if createErr != nil {
+					logger.Error(createErr, "Failed to create ImageDetected",
+						"repository", repoName,
+						"image", img.Name,
+						"tag", img.Tag)
+					// Continue with other images instead of failing completely
+					continue
+				}
+				if created {
+					totalCreatedCount++
+				}
+			}
+		}
+
+	case "imageName", "image":
+		// For imageName and image patterns, we need to scan all repositories but still process per-repository
+		// This is more complex and might not be the typical use case for perRepository mode
+		return 0, fmt.Errorf("perRepository mode is not yet supported for patternType '%s', use 'repository' pattern type instead", patternType)
+
+	default:
+		return 0, fmt.Errorf("unknown pattern type '%s'", patternType)
+	}
+
+	var totalRepositories int
+	if patternType == "repository" {
+		if repositories, err := registryClient.FindRepositoriesByPattern(ctx, policy.Spec.ECRRepository.Region, pattern, maxRepos); err == nil {
+			totalRepositories = len(repositories)
+		}
+	}
+
+	logger.Info("Completed per-repository processing",
+		"totalRepositories", totalRepositories,
+		"totalCreatedImageDetected", totalCreatedCount)
+
+	return totalCreatedCount, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

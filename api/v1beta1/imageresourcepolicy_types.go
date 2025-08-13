@@ -63,6 +63,12 @@ type ECRRepository struct {
 
 // PolicySpec defines the image selection policy
 type PolicySpec struct {
+	// PerRepository enables per-repository policy application instead of cross-repository policy
+	// When true, policy is applied to each repository separately, creating ImageDetected per repository
+	// When false (default), policy is applied across all repositories, typically creating fewer ImageDetected resources
+	// +kubebuilder:default=false
+	PerRepository bool `json:"perRepository,omitempty"`
+
 	// Semver policy for selecting images by semantic version
 	// +optional
 	Semver *SemverPolicy `json:"semver,omitempty"`

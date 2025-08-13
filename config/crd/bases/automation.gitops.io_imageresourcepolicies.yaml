@@ -125,6 +125,13 @@ spec:
                     required:
                     - regex
                     type: object
+                  perRepository:
+                    default: false
+                    description: |-
+                      PerRepository enables per-repository policy application instead of cross-repository policy
+                      When true, policy is applied to each repository separately, creating ImageDetected per repository
+                      When false (default), policy is applied across all repositories, typically creating fewer ImageDetected resources
+                    type: boolean
                   semver:
                     description: Semver policy for selecting images by semantic version
                     properties:
