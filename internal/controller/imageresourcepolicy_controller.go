@@ -391,6 +391,9 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 		},
 	}
 
+	// ImageDetected is created with sourcePolicy reference only
+	// Creation Controller will handle ResourceTemplate lookup via sourcePolicy
+
 	if err := r.Create(ctx, imageDetected); err != nil {
 		return false, fmt.Errorf("failed to create ImageDetected: %w", err)
 	}

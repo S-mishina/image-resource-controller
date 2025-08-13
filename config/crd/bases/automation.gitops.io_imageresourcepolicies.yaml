@@ -108,9 +108,24 @@ spec:
                 default: false
                 description: Suspend stops the controller from processing this policy
                 type: boolean
+              templateRef:
+                description: TemplateRef references the ResourceTemplate to use for
+                  resource creation
+                properties:
+                  name:
+                    description: Name of the ResourceTemplate
+                    type: string
+                  namespace:
+                    description: Namespace of the ResourceTemplate (optional, defaults
+                      to same namespace)
+                    type: string
+                required:
+                - name
+                type: object
             required:
             - ecrRepository
             - policy
+            - templateRef
             type: object
           status:
             description: ImageResourcePolicyStatus defines the observed state of ImageResourcePolicy

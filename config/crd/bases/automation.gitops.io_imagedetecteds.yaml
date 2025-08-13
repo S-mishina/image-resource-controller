@@ -46,6 +46,33 @@ spec:
               fullImageName:
                 description: FullImageName is the complete ECR image URL
                 type: string
+              gitRepository:
+                description: GitRepository defines Git repository configuration for
+                  resource creation
+                properties:
+                  branch:
+                    default: main
+                    description: 'Branch to use (default: "main")'
+                    type: string
+                  path:
+                    default: ./
+                    description: 'Path within the repository (default: "./")'
+                    type: string
+                  secretRef:
+                    description: SecretRef for Git authentication
+                    properties:
+                      name:
+                        description: Name of the Secret resource
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  url:
+                    description: URL of the Git repository
+                    type: string
+                required:
+                - url
+                type: object
               imageDigest:
                 description: ImageDigest is the digest of the detected image
                 type: string
@@ -68,13 +95,29 @@ spec:
                 required:
                 - name
                 type: object
+              templateRef:
+                description: TemplateRef references the ResourceTemplate to use for
+                  resource creation
+                properties:
+                  name:
+                    description: Name of the ResourceTemplate
+                    type: string
+                  namespace:
+                    description: Namespace of the ResourceTemplate (optional, defaults
+                      to same namespace)
+                    type: string
+                required:
+                - name
+                type: object
             required:
             - detectedAt
             - fullImageName
+            - gitRepository
             - imageDigest
             - imageName
             - imageTag
             - sourcePolicy
+            - templateRef
             type: object
           status:
             description: ImageDetectedStatus defines the observed state of ImageDetected

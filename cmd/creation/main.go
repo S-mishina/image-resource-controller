@@ -37,6 +37,8 @@ import (
 
 	automationv1beta1 "github.com/S-mishina/image-resource-controller/api/v1beta1"
 	"github.com/S-mishina/image-resource-controller/internal/controller"
+	"github.com/S-mishina/image-resource-controller/internal/k8s"
+	"github.com/S-mishina/image-resource-controller/internal/template"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -145,9 +147,18 @@ func main() {
 
 	// Resource Creation Controller watches ImageDetected and ResourceTemplate
 	// and performs resource creation and Git operations
+
+	// Initialize ExistenceChecker
+	existenceChecker := k8s.NewExistenceChecker(mgr.GetClient(), mgr.GetScheme())
+
+	// Initialize TemplateProcessor
+	templateProcessor := template.NewProcessor()
+
 	if err = (&controller.ImageDetectedReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		ExistenceChecker:  *existenceChecker,
+		TemplateProcessor: templateProcessor,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ImageDetected")
 		os.Exit(1)

@@ -86,6 +86,17 @@ type AWSAuthConfig struct {
 	RoleArn string `json:"roleArn,omitempty"`
 }
 
+// TemplateRef defines a reference to a ResourceTemplate
+type TemplateRef struct {
+	// Name of the ResourceTemplate
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// Namespace of the ResourceTemplate (optional, defaults to same namespace)
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // ImageResourcePolicySpec defines the desired state of ImageResourcePolicy
 type ImageResourcePolicySpec struct {
 	// ECRRepository defines the ECR repository to monitor
@@ -95,6 +106,10 @@ type ImageResourcePolicySpec struct {
 	// Policy defines the image selection criteria
 	// +kubebuilder:validation:Required
 	Policy PolicySpec `json:"policy"`
+
+	// TemplateRef references the ResourceTemplate to use for resource creation
+	// +kubebuilder:validation:Required
+	TemplateRef TemplateRef `json:"templateRef"`
 
 	// AWS defines AWS authentication configuration (optional)
 	// +optional
