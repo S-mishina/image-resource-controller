@@ -148,7 +148,10 @@ func (ec *ExistenceChecker) CheckImageExists(ctx context.Context, imageName stri
 		}
 	}
 
-	usage := ec.cache.GetImageUsage(imageName)
+	// Extract base image name for lookup
+	extractedName := ec.extractImageName(imageName)
+
+	usage := ec.cache.GetImageUsage(extractedName)
 	exists := len(usage) > 0
 
 	logger.Info("Image existence check completed",

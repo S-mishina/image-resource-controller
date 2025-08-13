@@ -79,27 +79,9 @@ rules:
   resources:
   - resourcetemplates
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
-- apiGroups:
-  - automation.gitops.io
-  resources:
-  - resourcetemplates/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - automation.gitops.io
-  resources:
-  - resourcetemplates/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - batch
   resources:

@@ -89,7 +89,7 @@ func (r *ImageDetectedReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Check if image already exists in cluster
-	fullImageName := fmt.Sprintf("%s:%s", imageDetected.Spec.FullImageName, imageDetected.Spec.ImageTag)
+	fullImageName := imageDetected.Spec.FullImageName // Already contains complete image URL with tag
 	exists, usage, err := r.ExistenceChecker.CheckImageExists(ctx, fullImageName)
 	if err != nil {
 		logger.Error(err, "Failed to check image existence")
