@@ -146,6 +146,65 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: build-controllers-installer
+build-controllers-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and both controllers deployment.
+	mkdir -p dist
+	$(KUSTOMIZE) build config/controllers > dist/controllers-install.yaml
+
+.PHONY: deploy-controllers
+deploy-controllers: manifests kustomize ## Deploy both controllers to the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/controllers | $(KUBECTL) apply -f -
+
+.PHONY: undeploy-controllers
+undeploy-controllers: kustomize ## Undeploy both controllers from the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/controllers | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+
+##@ KIND Development
+
+.PHONY: kind-create
+kind-create: ## Create a KIND cluster for development
+	kind create cluster --name image-resource-controller
+
+.PHONY: kind-delete
+kind-delete: ## Delete the KIND cluster
+	kind delete cluster --name image-resource-controller
+
+.PHONY: kind-load-images
+kind-load-images: ## Load both controller images into KIND cluster
+	kind load docker-image $(DETECTION_IMG) --name image-resource-controller
+	kind load docker-image $(CREATION_IMG) --name image-resource-controller
+
+.PHONY: kind-deploy
+kind-deploy: kind-load-images deploy-controllers ## Load images and deploy controllers to KIND cluster
+
+.PHONY: kind-dev
+kind-dev: docker-build kind-deploy ## Complete development workflow: build, load images, and deploy to KIND
+
+.PHONY: kind-logs-detection
+kind-logs-detection: ## Show logs for detection controller
+	$(KUBECTL) logs -l control-plane=image-detection-controller -n image-resource-controller-system --tail=50 -f
+
+.PHONY: kind-logs-creation
+kind-logs-creation: ## Show logs for creation controller
+	$(KUBECTL) logs -l control-plane=resource-creation-controller -n image-resource-controller-system --tail=50 -f
+
+.PHONY: kind-status
+kind-status: ## Show status of both controllers in KIND
+	@echo "=== Deployments ==="
+	$(KUBECTL) get deployments -n image-resource-controller-system
+	@echo "=== Pods ==="
+	$(KUBECTL) get pods -n image-resource-controller-system
+	@echo "=== Services ==="
+	$(KUBECTL) get services -n image-resource-controller-system
+
+.PHONY: kind-restart
+kind-restart: ## Restart both controllers (for development)
+	$(KUBECTL) rollout restart deployment/image-detection-controller -n image-resource-controller-system
+	$(KUBECTL) rollout restart deployment/resource-creation-controller -n image-resource-controller-system
+
+.PHONY: kind-clean
+kind-clean: undeploy-controllers kind-delete ## Clean up everything: undeploy and delete KIND cluster
+
 ##@ Deployment
 
 ifndef ignore-not-found

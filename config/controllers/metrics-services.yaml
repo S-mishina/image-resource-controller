@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: image-detection-controller
+    app.kubernetes.io/component: detection
+  name: image-detection-controller-metrics-service
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    control-plane: image-detection-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: resource-creation-controller
+    app.kubernetes.io/component: creation
+  name: resource-creation-controller-metrics-service
+spec:
+  ports:
+  - name: https
+    port: 8444
+    protocol: TCP
+    targetPort: 8082
+  selector:
+    control-plane: resource-creation-controller
