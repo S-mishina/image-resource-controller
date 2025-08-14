@@ -48,25 +48,24 @@ graph TB
 
 ```mermaid
 graph TD
-    DEV[Developer] -->|1. Push Image| ECR[AWS ECR Repository]
-    ECR -->|2. Image: myapp:dev-v1.2.0| POLICY[ImageResourcePolicy]
+    DEV[Developer] -->|1.Push Image| ECR[AWS ECR Repository]
+    ECR -->|2.Image| POLICY[ImageResourcePolicy]
     
-    POLICY -->|3. Pattern Match + Extract Prefix| DETECT[Detection Manager]
-    DETECT -->|4. Create ImageDetected Resource| ID[ImageDetected: dev-v1.2.0]
+    POLICY -->|3.Pattern Match| DETECT[Detection Manager]
+    DETECT -->|4.Create Resource| ID[ImageDetected]
     
-    ID -->|5. Watch Event| CREATE[Creation Manager]
-    CREATE -->|6. Check Existing Resources| CACHE[Image Usage Cache]
+    ID -->|5.Watch Event| CREATE[Creation Manager]
+    CREATE -->|6.Check Resources| CACHE[Image Usage Cache]
     
-    CACHE -->|7. No dev-* prefix found| TEMPLATE[Apply ResourceTemplate]
-    TEMPLATE -->|8. Generate Manifest| GIT[Git Repository]
-    GIT -->|9. Commit & Push| GITOPS[GitOps Tool: Flux/ArgoCD]
+    CACHE -->|7.No prefix| TEMPLATE[Apply ResourceTemplate]
+    TEMPLATE -->|8.Generate| GIT[Git Repository]
+    GIT -->|9.Commit| GITOPS[GitOps Tool]
     
-    GITOPS -->|10. Deploy| K8S[Kubernetes Cluster]
-    K8S -->|11. Update Cache| CACHE
+    GITOPS -->|10.Deploy| K8S[Kubernetes Cluster]
+    K8S -->|11.Update| CACHE
     
-    %% Alternative flow for existing images
-    CACHE -.->|7a. dev-* prefix exists| SKIP[Skip Creation]
-    SKIP -.->|Delegate to GitOps| GITOPS
+    CACHE -.->|7a.prefix exists| SKIP[Skip Creation]
+    SKIP -.->|Delegate| GITOPS
     
     style DEV fill:#e1f5fe
     style ECR fill:#fff3e0
