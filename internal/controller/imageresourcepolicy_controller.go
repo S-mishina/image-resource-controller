@@ -412,8 +412,48 @@ func (r *ImageResourcePolicyReconciler) fallbackFilter(images []registry.ImageIn
 }
 
 // createImageDetectedIfNotExists creates an ImageDetected CRD if it doesn't already exist
-func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy, img registry.ImageInfo) (bool, error) {
+func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx context.Context, imagePolicy *automationv1beta1.ImageResourcePolicy, img registry.ImageInfo) (bool, error) {
 	logger := log.FromContext(ctx)
+
+	// Extract tag prefix if pattern policy with extractPrefix is enabled
+	var tagPrefix string
+	if imagePolicy.Spec.Policy.Pattern != nil && imagePolicy.Spec.Policy.Pattern.ExtractPrefix {
+		logger.V(1).Info("Extracting tag prefix from pattern policy",
+			"regex", imagePolicy.Spec.Policy.Pattern.Regex,
+			"imageTag", img.Tag)
+
+		// Initialize policy processor if not already done
+		if r.PolicyProcessor == nil {
+			r.PolicyProcessor = policy.NewPolicyProcessor()
+		}
+
+		// Apply pattern policy with prefix extraction to get the prefix
+		singleImageList := []registry.ImageInfo{img}
+		_, prefixMap, err := r.PolicyProcessor.ApplyPatternPolicyWithPrefix(singleImageList, *imagePolicy.Spec.Policy.Pattern)
+		if err != nil {
+			logger.Error(err, "Failed to extract prefix from tag, proceeding without prefix",
+				"tag", img.Tag,
+				"regex", imagePolicy.Spec.Policy.Pattern.Regex,
+				"extractPrefix", imagePolicy.Spec.Policy.Pattern.ExtractPrefix)
+			// Continue without prefix rather than failing completely
+		} else if prefixMap != nil {
+			if extractedPrefix, exists := prefixMap[img.Tag]; exists {
+				tagPrefix = extractedPrefix
+				logger.Info("Successfully extracted tag prefix",
+					"imageTag", img.Tag,
+					"extractedPrefix", tagPrefix,
+					"regex", imagePolicy.Spec.Policy.Pattern.Regex)
+			} else {
+				logger.V(1).Info("No prefix extracted for tag",
+					"imageTag", img.Tag,
+					"reason", "Tag did not match regex or no capture groups")
+			}
+		} else {
+			logger.V(1).Info("Prefix extraction returned nil map",
+				"imageTag", img.Tag,
+				"extractPrefix", imagePolicy.Spec.Policy.Pattern.ExtractPrefix)
+		}
+	}
 
 	// Generate name for ImageDetected resource
 	// Format: {image-name}-{tag-sanitized}-{digest-short}
@@ -426,7 +466,7 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 	existing := &automationv1beta1.ImageDetected{}
 	namespacedName := types.NamespacedName{
 		Name:      detectedName,
-		Namespace: policy.Namespace,
+		Namespace: imagePolicy.Namespace,
 	}
 
 	err := r.Get(ctx, namespacedName, existing)
@@ -443,14 +483,14 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 	imageDetected := &automationv1beta1.ImageDetected{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      detectedName,
-			Namespace: policy.Namespace,
+			Namespace: imagePolicy.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/name":      "image-resource-controller",
 				"app.kubernetes.io/component": "image-detected",
-				"automation.gitops.io/source": policy.Name,
+				"automation.gitops.io/source": imagePolicy.Name,
 			},
 			Annotations: map[string]string{
-				"automation.gitops.io/source-policy": policy.Name,
+				"automation.gitops.io/source-policy": imagePolicy.Name,
 			},
 		},
 		Spec: automationv1beta1.ImageDetectedSpec{
@@ -458,9 +498,10 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 			ImageTag:      img.Tag,
 			ImageDigest:   img.Digest,
 			FullImageName: img.FullURL,
+			TagPrefix:     tagPrefix, // New field with extracted prefix
 			SourcePolicy: automationv1beta1.SourcePolicyRef{
-				Name:      policy.Name,
-				Namespace: policy.Namespace,
+				Name:      imagePolicy.Name,
+				Namespace: imagePolicy.Namespace,
 			},
 			DetectedAt: metav1.Time{Time: img.PushedAt},
 		},
@@ -480,6 +521,7 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 		"name", detectedName,
 		"image", img.Name,
 		"tag", img.Tag,
+		"tagPrefix", tagPrefix,
 		"digest", digestShort)
 
 	return true, nil

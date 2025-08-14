@@ -46,6 +46,9 @@ type TemplateVars struct {
 	// Kubernetes compatible name
 	K8sCompatibleName string `json:"k8sCompatibleName"` // Kubernetes resource name format
 
+	// Tag prefix for prefix-aware processing
+	TagPrefix string `json:"tagPrefix,omitempty"` // "aaa" from "aaa-v1.0.0"
+
 	// Additional variables from ResourceTemplate
 	Variables map[string]string `json:"variables,omitempty"`
 }
@@ -92,6 +95,30 @@ func (p *Processor) BuildTemplateVars(fullImageName, imageTag, imageDigest strin
 		ImageTag:      imageTag,
 		ImageDigest:   imageDigest,
 		FullImageName: fullImageName,
+		Variables:     additionalVars,
+	}
+
+	// Parse ECR URL
+	if err := p.parseECRURL(fullImageName, &vars); err != nil {
+		return vars, fmt.Errorf("failed to parse ECR URL: %w", err)
+	}
+
+	// Generate Kubernetes compatible name
+	vars.K8sCompatibleName = p.sanitizeForK8s(vars.ServiceName)
+	if vars.Namespace != "" {
+		vars.K8sCompatibleName = p.sanitizeForK8s(vars.Namespace + "-" + vars.ServiceName)
+	}
+
+	return vars, nil
+}
+
+// BuildTemplateVarsWithPrefix builds template variables from image information including tag prefix
+func (p *Processor) BuildTemplateVarsWithPrefix(fullImageName, imageTag, imageDigest, tagPrefix string, additionalVars map[string]string) (TemplateVars, error) {
+	vars := TemplateVars{
+		ImageTag:      imageTag,
+		ImageDigest:   imageDigest,
+		FullImageName: fullImageName,
+		TagPrefix:     tagPrefix,
 		Variables:     additionalVars,
 	}
 
@@ -368,6 +395,7 @@ func (p *Processor) analyzeVariableUsage(templateContent string, vars TemplateVa
 	availableVars := []string{
 		"ImageTag", "ImageDigest", "RepositoryName", "Registry", "Region",
 		"AccountID", "FullImageName", "Namespace", "ServiceName", "K8sCompatibleName",
+		"TagPrefix",
 	}
 
 	for _, varName := range availableVars {

@@ -119,6 +119,12 @@ spec:
                   pattern:
                     description: Pattern policy for selecting images by regular expression
                     properties:
+                      extractPrefix:
+                        default: false
+                        description: |-
+                          ExtractPrefix enables tag prefix extraction from regex capture groups
+                          When true, the first capture group in the regex will be extracted as tag prefix
+                        type: boolean
                       regex:
                         description: Regex specifies the regular expression pattern
                         type: string

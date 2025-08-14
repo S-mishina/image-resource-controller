@@ -102,6 +102,12 @@ type PatternPolicy struct {
 	// Regex specifies the regular expression pattern
 	// +kubebuilder:validation:Required
 	Regex string `json:"regex"`
+
+	// ExtractPrefix enables tag prefix extraction from regex capture groups
+	// When true, the first capture group in the regex will be extracted as tag prefix
+	// +kubebuilder:default=false
+	// +optional
+	ExtractPrefix bool `json:"extractPrefix,omitempty"`
 }
 
 // SecretRef defines a reference to a Secret resource

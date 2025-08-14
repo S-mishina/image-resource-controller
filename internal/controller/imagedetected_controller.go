@@ -88,9 +88,29 @@ func (r *ImageDetectedReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	// Check if image already exists in cluster
-	fullImageName := imageDetected.Spec.FullImageName // Already contains complete image URL with tag
-	exists, usage, err := r.ExistenceChecker.CheckImageExists(ctx, fullImageName)
+	// Check if image already exists in cluster with prefix-aware logic
+	var exists bool
+	var usage []k8s.ResourceInfo
+	var err error
+
+	if imageDetected.Spec.TagPrefix != "" {
+		// Use prefix-aware existence check
+		exists, usage, err = r.ExistenceChecker.CheckImageExistsWithTagPrefix(
+			ctx,
+			imageDetected.Spec.ImageName,
+			imageDetected.Spec.TagPrefix,
+		)
+
+		logger.Info("Prefix-aware existence check",
+			"imageName", imageDetected.Spec.ImageName,
+			"tagPrefix", imageDetected.Spec.TagPrefix,
+			"newTag", imageDetected.Spec.ImageTag)
+	} else {
+		// Use traditional existence check
+		fullImageName := imageDetected.Spec.FullImageName // Already contains complete image URL with tag
+		exists, usage, err = r.ExistenceChecker.CheckImageExists(ctx, fullImageName)
+	}
+
 	if err != nil {
 		logger.Error(err, "Failed to check image existence")
 		if updateErr := r.updatePhase(ctx, &imageDetected, "Failed", fmt.Sprintf("Failed to check image existence: %v", err)); updateErr != nil {
@@ -100,23 +120,42 @@ func (r *ImageDetectedReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if exists {
+		var reason string
+		if imageDetected.Spec.TagPrefix != "" {
+			reason = "Same tag prefix pattern exists - delegating to Flux for version updates"
+		} else {
+			reason = "Duplicate resource creation prevented - image already deployed"
+		}
+
 		logger.Info("Image already exists in cluster, skipping resource creation and Git operations",
-			"image", fullImageName,
+			"image", imageDetected.Spec.FullImageName,
 			"imageName", imageDetected.Spec.ImageName,
 			"imageTag", imageDetected.Spec.ImageTag,
+			"tagPrefix", imageDetected.Spec.TagPrefix,
 			"existingResourcesCount", len(usage),
-			"reason", "Duplicate resource creation prevented - image already deployed")
+			"reason", reason)
 
 		// Log details about existing resources
 		for _, resource := range usage {
-			logger.Info("Found existing resource using this image",
-				"resourceKind", resource.Kind,
-				"resourceName", resource.Name,
-				"resourceNamespace", resource.Namespace,
-				"containerName", resource.Container)
+			if imageDetected.Spec.TagPrefix != "" {
+				// Extract tag from existing resource for prefix comparison
+				existingTag := extractTagFromImage(resource.Image)
+				logger.Info("Found existing resource with matching tag prefix",
+					"resourceKind", resource.Kind,
+					"resourceName", resource.Name,
+					"resourceNamespace", resource.Namespace,
+					"existingTag", existingTag,
+					"containerName", resource.Container)
+			} else {
+				logger.Info("Found existing resource using this image",
+					"resourceKind", resource.Kind,
+					"resourceName", resource.Name,
+					"resourceNamespace", resource.Namespace,
+					"containerName", resource.Container)
+			}
 		}
 
-		if err := r.updatePhase(ctx, &imageDetected, "Completed", "Image already exists in cluster"); err != nil {
+		if err := r.updatePhase(ctx, &imageDetected, "Completed", reason); err != nil {
 			logger.Error(err, "Failed to update phase to Completed")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, err
 		}
@@ -241,20 +280,27 @@ func (r *ImageDetectedReconciler) updatePhase(ctx context.Context, imageDetected
 func (r *ImageDetectedReconciler) processTemplate(ctx context.Context, imageDetected *automationv1beta1.ImageDetected, resourceTemplate *automationv1beta1.ResourceTemplate) (map[string]string, error) {
 	logger := log.FromContext(ctx)
 
-	// Create template variables from ImageDetected spec
-	vars := template.TemplateVars{
-		ImageTag:      imageDetected.Spec.ImageTag,
-		ImageDigest:   imageDetected.Spec.ImageDigest,
-		FullImageName: imageDetected.Spec.FullImageName,
+	var vars template.TemplateVars
+	var err error
+
+	// Use BuildTemplateVarsWithPrefix if TagPrefix is present
+	if imageDetected.Spec.TagPrefix != "" {
+		vars, err = r.TemplateProcessor.BuildTemplateVarsWithPrefix(
+			imageDetected.Spec.FullImageName,
+			imageDetected.Spec.ImageTag,
+			imageDetected.Spec.ImageDigest,
+			imageDetected.Spec.TagPrefix,
+			resourceTemplate.Spec.Variables, // Additional variables from ResourceTemplate
+		)
+	} else {
+		vars, err = r.TemplateProcessor.BuildTemplateVars(
+			imageDetected.Spec.FullImageName,
+			imageDetected.Spec.ImageTag,
+			imageDetected.Spec.ImageDigest,
+			resourceTemplate.Spec.Variables, // Additional variables from ResourceTemplate
+		)
 	}
 
-	// Use BuildTemplateVars to properly parse ECR URL and build variables
-	vars, err := r.TemplateProcessor.BuildTemplateVars(
-		imageDetected.Spec.FullImageName,
-		imageDetected.Spec.ImageTag,
-		imageDetected.Spec.ImageDigest,
-		nil, // Additional variables
-	)
 	if err != nil {
 		logger.Error(err, "Failed to build template variables", "fullImageName", imageDetected.Spec.FullImageName)
 		// Use basic variables as fallback
@@ -263,6 +309,8 @@ func (r *ImageDetectedReconciler) processTemplate(ctx context.Context, imageDete
 			ImageDigest:   imageDetected.Spec.ImageDigest,
 			FullImageName: imageDetected.Spec.FullImageName,
 			ServiceName:   imageDetected.Spec.ImageName,
+			TagPrefix:     imageDetected.Spec.TagPrefix,
+			Variables:     resourceTemplate.Spec.Variables,
 		}
 	}
 
@@ -272,8 +320,14 @@ func (r *ImageDetectedReconciler) processTemplate(ctx context.Context, imageDete
 		return nil, fmt.Errorf("failed to process template: %w", err)
 	}
 
-	// Generate file name from image name
-	fileName := fmt.Sprintf("%s.yaml", imageDetected.Spec.ImageName)
+	// Generate file name from image name and prefix to avoid conflicts
+	var fileName string
+	if imageDetected.Spec.TagPrefix != "" {
+		// Include prefix in filename to avoid conflicts between environments
+		fileName = fmt.Sprintf("%s-%s.yaml", imageDetected.Spec.ImageName, imageDetected.Spec.TagPrefix)
+	} else {
+		fileName = fmt.Sprintf("%s.yaml", imageDetected.Spec.ImageName)
+	}
 
 	manifests := map[string]string{
 		fileName: string(result),
@@ -399,6 +453,25 @@ func (r *ImageDetectedReconciler) determineRetryInterval(err error) time.Duratio
 
 	// Default retry interval for unknown errors
 	return 5 * time.Minute
+}
+
+// extractTagFromImage extracts tag from full image name
+func extractTagFromImage(fullImageName string) string {
+	// "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:aaa-v1.0.0"
+	// -> "aaa-v1.0.0"
+
+	if strings.Contains(fullImageName, ":") {
+		parts := strings.Split(fullImageName, ":")
+		if len(parts) > 1 {
+			tag := parts[len(parts)-1]
+			// Remove digest if present (@sha256:...)
+			if strings.Contains(tag, "@") {
+				tag = strings.Split(tag, "@")[0]
+			}
+			return tag
+		}
+	}
+	return ""
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -124,6 +124,67 @@ func (p *PolicyProcessor) applyPatternPolicy(images []registry.ImageInfo, policy
 	return filtered, nil
 }
 
+// ApplyPatternPolicyWithPrefix filters images and extracts prefixes from regex capture groups
+func (p *PolicyProcessor) ApplyPatternPolicyWithPrefix(images []registry.ImageInfo, policy automationv1beta1.PatternPolicy) ([]registry.ImageInfo, map[string]string, error) {
+	// Validate regex pattern
+	if policy.Regex == "" {
+		return nil, nil, fmt.Errorf("regex pattern cannot be empty")
+	}
+
+	regex, err := regexp.Compile(policy.Regex)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid regex pattern '%s': %w", policy.Regex, err)
+	}
+
+	var filtered []registry.ImageInfo
+	var prefixMap map[string]string
+
+	if policy.ExtractPrefix {
+		prefixMap = make(map[string]string) // tag -> prefix mapping
+	}
+
+	// Track statistics for logging
+	matchCount := 0
+	prefixExtractCount := 0
+	noCapturegroupCount := 0
+
+	for _, img := range images {
+		if img.Tag == "" {
+			// Skip empty tags
+			continue
+		}
+
+		matches := regex.FindStringSubmatch(img.Tag)
+		if len(matches) > 0 {
+			// マッチした
+			filtered = append(filtered, img)
+			matchCount++
+
+			// extractPrefix=true かつ キャプチャグループがある場合
+			if policy.ExtractPrefix {
+				if len(matches) > 1 && matches[1] != "" {
+					prefixMap[img.Tag] = matches[1] // 最初のキャプチャグループ
+					prefixExtractCount++
+				} else {
+					// No capture groups or empty capture group
+					noCapturegroupCount++
+				}
+			}
+		}
+	}
+
+	// Log statistics if extractPrefix is enabled
+	if policy.ExtractPrefix {
+		// Note: In a real scenario, we'd use proper logging with context
+		// For now, we'll add debug information in error cases
+		if noCapturegroupCount > 0 && prefixExtractCount == 0 {
+			return nil, nil, fmt.Errorf("extractPrefix is enabled but regex pattern '%s' has no capture groups or all capture groups are empty", policy.Regex)
+		}
+	}
+
+	return filtered, prefixMap, nil
+}
+
 // applyAlphabeticalPolicy selects the best image alphabetically by tag
 func (p *PolicyProcessor) applyAlphabeticalPolicy(images []registry.ImageInfo, policy automationv1beta1.AlphabeticalPolicy) ([]registry.ImageInfo, error) {
 	if len(images) == 0 {

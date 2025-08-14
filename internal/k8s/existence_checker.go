@@ -354,6 +354,149 @@ func (ec *ExistenceChecker) GetCacheStats() CacheStats {
 	return ec.cache.GetCacheStats()
 }
 
+// CheckImageExistsWithTagPrefix checks with tag prefix awareness for version management
+func (ec *ExistenceChecker) CheckImageExistsWithTagPrefix(ctx context.Context, imageName string, tagPrefix string) (bool, []ResourceInfo, error) {
+	logger := log.FromContext(ctx)
+
+	// Validate input parameters
+	if imageName == "" {
+		return false, []ResourceInfo{}, fmt.Errorf("imageName cannot be empty")
+	}
+
+	logger.V(1).Info("Starting prefix-aware image existence check",
+		"imageName", imageName,
+		"tagPrefix", tagPrefix)
+
+	// Update cache if expired
+	if ec.cache.IsExpired() {
+		logger.Info("Image usage cache is expired, refreshing...")
+		if err := ec.refreshCache(ctx); err != nil {
+			logger.Error(err, "Failed to refresh image usage cache")
+			// Continue with stale cache rather than failing completely
+		}
+	}
+
+	// Get base image usage
+	usage := ec.cache.GetImageUsage(imageName)
+
+	if len(usage) == 0 {
+		// No existing resources for this image name
+		logger.V(1).Info("No existing resources found for image",
+			"imageName", imageName)
+		return false, []ResourceInfo{}, nil
+	}
+
+	logger.V(1).Info("Found existing resources for image",
+		"imageName", imageName,
+		"totalResources", len(usage))
+
+	// If tagPrefix is empty, fall back to traditional check
+	if tagPrefix == "" {
+		logger.V(1).Info("No tagPrefix specified, using traditional existence check",
+			"imageName", imageName,
+			"resourceCount", len(usage))
+		exists := len(usage) > 0
+		return exists, usage, nil
+	}
+
+	// Check for same prefix using flexible extraction
+	matchingResources := []ResourceInfo{}
+	prefixStats := make(map[string]int) // Track prefix distribution
+
+	for _, resource := range usage {
+		// Extract tag from resource image
+		existingTag := ec.extractTag(resource.Image)
+		if existingTag == "" {
+			logger.V(1).Info("Skipping resource with empty tag",
+				"resourceName", resource.Name,
+				"resourceKind", resource.Kind,
+				"fullImage", resource.Image)
+			continue
+		}
+
+		// Extract prefix from existing tag and compare
+		existingPrefix := ec.extractPrefixFromTag(existingTag)
+		prefixStats[existingPrefix]++
+
+		logger.V(2).Info("Comparing tag prefixes",
+			"existingTag", existingTag,
+			"existingPrefix", existingPrefix,
+			"newTagPrefix", tagPrefix,
+			"resourceName", resource.Name)
+
+		if existingPrefix == tagPrefix {
+			matchingResources = append(matchingResources, resource)
+			logger.Info("Found existing resource with same tag prefix",
+				"imageName", imageName,
+				"existingTag", existingTag,
+				"existingPrefix", existingPrefix,
+				"newTagPrefix", tagPrefix,
+				"resourceName", resource.Name,
+				"resourceKind", resource.Kind,
+				"resourceNamespace", resource.Namespace)
+		}
+	}
+
+	exists := len(matchingResources) > 0
+
+	// Enhanced logging with prefix statistics
+	logger.Info("Tag prefix existence check completed",
+		"imageName", imageName,
+		"tagPrefix", tagPrefix,
+		"exists", exists,
+		"matchingResourcesCount", len(matchingResources),
+		"totalResourcesCount", len(usage),
+		"prefixDistribution", prefixStats)
+
+	// Log detailed results for debugging
+	if len(matchingResources) > 0 {
+		logger.V(1).Info("Prefix match found - delegating to Flux for version management",
+			"reason", "Same prefix exists in cluster")
+	} else {
+		logger.V(1).Info("No prefix match found - will create new resource",
+			"reason", "Different or no matching prefix in cluster")
+	}
+
+	return exists, matchingResources, nil
+}
+
+// extractPrefixFromTag extracts prefix from tag using multiple separators
+func (ec *ExistenceChecker) extractPrefixFromTag(tag string) string {
+	// 優先順位でセパレータを試す
+	separators := []string{"-", "_", ".", "/"}
+
+	for _, sep := range separators {
+		if strings.Contains(tag, sep) {
+			parts := strings.Split(tag, sep)
+			if len(parts) > 0 && parts[0] != "" {
+				return parts[0] // 最初の部分をプレフィックスとする
+			}
+		}
+	}
+
+	// セパレータがない場合は全体をプレフィックスとする
+	return tag
+}
+
+// extractTag extracts tag from full image name
+func (ec *ExistenceChecker) extractTag(fullImageName string) string {
+	// "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:aaa-v1.0.0"
+	// -> "aaa-v1.0.0"
+
+	if strings.Contains(fullImageName, ":") {
+		parts := strings.Split(fullImageName, ":")
+		if len(parts) > 1 {
+			tag := parts[len(parts)-1]
+			// Remove digest if present (@sha256:...)
+			if strings.Contains(tag, "@") {
+				tag = strings.Split(tag, "@")[0]
+			}
+			return tag
+		}
+	}
+	return ""
+}
+
 // ForceRefresh forces a cache refresh regardless of TTL
 func (ec *ExistenceChecker) ForceRefresh(ctx context.Context) error {
 	return ec.refreshCache(ctx)

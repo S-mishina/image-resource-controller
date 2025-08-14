@@ -68,6 +68,11 @@ spec:
                 required:
                 - name
                 type: object
+              tagPrefix:
+                description: |-
+                  TagPrefix is the extracted prefix from the image tag when extractPrefix is enabled
+                  This is used for prefix-aware duplicate detection and version management
+                type: string
             required:
             - detectedAt
             - fullImageName

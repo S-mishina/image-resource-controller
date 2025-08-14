@@ -49,6 +49,11 @@ type ImageDetectedSpec struct {
 	// +kubebuilder:validation:Required
 	FullImageName string `json:"fullImageName"`
 
+	// TagPrefix is the extracted prefix from the image tag when extractPrefix is enabled
+	// This is used for prefix-aware duplicate detection and version management
+	// +optional
+	TagPrefix string `json:"tagPrefix,omitempty"`
+
 	// SourcePolicy references the ImageResourcePolicy that detected this image
 	// +kubebuilder:validation:Required
 	SourcePolicy SourcePolicyRef `json:"sourcePolicy"`

@@ -54,7 +54,8 @@ graph TB
 - **Advanced Image Selection Policies**
   - Semantic version range specification (`>=1.0.0`, `~1.2.0`)
   - Alphabetical sorting (ascending/descending)
-  - Regular expression pattern matching
+  - Regular expression pattern matching with tag prefix extraction
+  - Environment-aware version management (dev, staging, prod prefixes)
 
 - **Efficient Scanning**
   - Concurrent execution control
@@ -190,6 +191,7 @@ spec:
   imageTag: v1.2.3
   imageDigest: sha256:abc123...
   fullImageName: 123456789012.dkr.ecr.us-east-1.amazonaws.com/webapp/frontend:v1.2.3
+  tagPrefix: "v"  # Extracted prefix when extractPrefix is enabled
   sourcePolicy:
     name: webapp-policy
     namespace: default
@@ -397,7 +399,32 @@ spec:
     repositoryPattern: "microservices/*"
 ```
 
-### 4. Complex Template Example
+### 4. Tag Prefix Extraction for Environment Management
+
+```yaml
+apiVersion: automation.gitops.io/v1beta1
+kind: ImageResourcePolicy
+metadata:
+  name: environment-aware-policy
+spec:
+  ecrRepository:
+    region: us-east-1
+    repositoryPattern: "webapp/*"
+  policy:
+    pattern:
+      regex: "^(dev|staging|prod)-v\\d+\\.\\d+\\.\\d+$"
+      extractPrefix: true  # Extract environment prefix from tag
+  templateRef:
+    name: webapp-template
+```
+
+This configuration enables:
+
+- **Environment-aware duplicate detection**: Only skips resources if same prefix exists
+- **Parallel environment deployments**: Different prefixes (dev, staging, prod) can coexist
+- **Version management delegation**: Lets GitOps tools handle version updates within same environment
+
+### 5. Complex Template Example
 
 ```yaml
 spec:
