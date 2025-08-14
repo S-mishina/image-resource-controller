@@ -66,9 +66,36 @@ spec:
                 required:
                 - url
                 type: object
+              multiFiles:
+                description: |-
+                  MultiFiles enables multi-file generation with flexible directory structure
+                  When specified, the legacy 'template' field is ignored
+                items:
+                  description: FileTemplate defines a single file template for multi-file
+                    generation
+                  properties:
+                    name:
+                      description: Name is a unique identifier for this file template
+                      type: string
+                    relativePath:
+                      description: |-
+                        RelativePath is the path relative to gitRepository.path where this file will be created
+                        Supports Go template variables like {{ .TagPrefix }}/deployments/{{ .ServiceName }}.yaml
+                      type: string
+                    template:
+                      description: Template is the Go template string for generating
+                        the file content
+                      type: string
+                  required:
+                  - name
+                  - relativePath
+                  - template
+                  type: object
+                type: array
               template:
-                description: Template is the Go template string for generating Kubernetes
-                  resources
+                description: |-
+                  Template is the Go template string for generating Kubernetes resources
+                  This field is used when multiFiles is not specified (legacy mode)
                 type: string
               validation:
                 description: Validation defines template validation settings
@@ -86,7 +113,6 @@ spec:
                 type: object
             required:
             - gitRepository
-            - template
             type: object
           status:
             description: ResourceTemplateStatus defines the observed state of ResourceTemplate

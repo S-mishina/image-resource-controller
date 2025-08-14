@@ -46,11 +46,33 @@ type ValidationConfig struct {
 	DryRun bool `json:"dryRun,omitempty"`
 }
 
+// FileTemplate defines a single file template for multi-file generation
+type FileTemplate struct {
+	// Name is a unique identifier for this file template
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
+
+	// RelativePath is the path relative to gitRepository.path where this file will be created
+	// Supports Go template variables like {{ .TagPrefix }}/deployments/{{ .ServiceName }}.yaml
+	// +kubebuilder:validation:Required
+	RelativePath string `json:"relativePath"`
+
+	// Template is the Go template string for generating the file content
+	// +kubebuilder:validation:Required
+	Template string `json:"template"`
+}
+
 // ResourceTemplateSpec defines the desired state of ResourceTemplate
 type ResourceTemplateSpec struct {
 	// Template is the Go template string for generating Kubernetes resources
-	// +kubebuilder:validation:Required
-	Template string `json:"template"`
+	// This field is used when multiFiles is not specified (legacy mode)
+	// +optional
+	Template string `json:"template,omitempty"`
+
+	// MultiFiles enables multi-file generation with flexible directory structure
+	// When specified, the legacy 'template' field is ignored
+	// +optional
+	MultiFiles []FileTemplate `json:"multiFiles,omitempty"`
 
 	// Variables contains additional template variables (optional)
 	// +optional

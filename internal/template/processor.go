@@ -89,6 +89,32 @@ func (p *Processor) ProcessTemplate(templateContent string, vars TemplateVars) (
 	return result, nil
 }
 
+// ProcessTemplateString processes a template string and returns the result as string
+func (p *Processor) ProcessTemplateString(templateContent string, vars TemplateVars) (string, error) {
+	result, err := p.ProcessTemplate(templateContent, vars)
+	if err != nil {
+		return "", err
+	}
+	return string(result), nil
+}
+
+// ProcessPathTemplate processes a path template (for relativePath in multiFiles)
+func (p *Processor) ProcessPathTemplate(pathTemplate string, vars TemplateVars) (string, error) {
+	// Create template with custom functions
+	tmpl, err := template.New("path").Funcs(p.funcMap).Parse(pathTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse path template: %w", err)
+	}
+
+	// Execute template
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, vars); err != nil {
+		return "", fmt.Errorf("failed to execute path template: %w", err)
+	}
+
+	return strings.TrimSpace(buf.String()), nil
+}
+
 // BuildTemplateVars builds template variables from image information
 func (p *Processor) BuildTemplateVars(fullImageName, imageTag, imageDigest string, additionalVars map[string]string) (TemplateVars, error) {
 	vars := TemplateVars{

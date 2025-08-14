@@ -314,10 +314,68 @@ func (r *ImageDetectedReconciler) processTemplate(ctx context.Context, imageDete
 		}
 	}
 
+	// Check if multiFiles is specified (new feature)
+	if len(resourceTemplate.Spec.MultiFiles) > 0 {
+		logger.Info("Using multi-file template generation", "filesCount", len(resourceTemplate.Spec.MultiFiles))
+		return r.processMultiFileTemplate(ctx, resourceTemplate, vars)
+	}
+
+	// Legacy single-file processing (backward compatibility)
+	logger.Info("Using legacy single-file template generation")
+	return r.processSingleFileTemplate(ctx, imageDetected, resourceTemplate, vars)
+}
+
+// processMultiFileTemplate processes multiple file templates
+func (r *ImageDetectedReconciler) processMultiFileTemplate(ctx context.Context, resourceTemplate *automationv1beta1.ResourceTemplate, vars template.TemplateVars) (map[string]string, error) {
+	logger := log.FromContext(ctx)
+	basePath := resourceTemplate.Spec.GitRepository.Path
+	manifests := make(map[string]string)
+
+	for _, fileTemplate := range resourceTemplate.Spec.MultiFiles {
+		// Process relative path template
+		renderedRelativePath, err := r.TemplateProcessor.ProcessPathTemplate(fileTemplate.RelativePath, vars)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render relative path for file template '%s': %w", fileTemplate.Name, err)
+		}
+
+		// Construct final path (basePath + relativePath)
+		finalPath := fmt.Sprintf("%s/%s", strings.TrimRight(basePath, "/"), strings.TrimLeft(renderedRelativePath, "/"))
+
+		// Process template content
+		content, err := r.TemplateProcessor.ProcessTemplateString(fileTemplate.Template, vars)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process template content for file template '%s': %w", fileTemplate.Name, err)
+		}
+
+		manifests[finalPath] = content
+
+		logger.Info("Generated file from multi-file template",
+			"templateName", fileTemplate.Name,
+			"relativePath", renderedRelativePath,
+			"finalPath", finalPath,
+			"contentSize", len(content))
+	}
+
+	logger.Info("Multi-file template processing completed",
+		"totalFiles", len(manifests),
+		"templateVars", vars)
+
+	return manifests, nil
+}
+
+// processSingleFileTemplate processes single template (legacy mode)
+func (r *ImageDetectedReconciler) processSingleFileTemplate(ctx context.Context, imageDetected *automationv1beta1.ImageDetected, resourceTemplate *automationv1beta1.ResourceTemplate, vars template.TemplateVars) (map[string]string, error) {
+	logger := log.FromContext(ctx)
+
+	// Ensure template field exists for backward compatibility
+	if resourceTemplate.Spec.Template == "" {
+		return nil, fmt.Errorf("template field is required when multiFiles is not specified")
+	}
+
 	// Process template
 	result, err := r.TemplateProcessor.ProcessTemplate(resourceTemplate.Spec.Template, vars)
 	if err != nil {
-		return nil, fmt.Errorf("failed to process template: %w", err)
+		return nil, fmt.Errorf("failed to process single template: %w", err)
 	}
 
 	// Generate file name from image name and prefix to avoid conflicts
@@ -333,9 +391,10 @@ func (r *ImageDetectedReconciler) processTemplate(ctx context.Context, imageDete
 		fileName: string(result),
 	}
 
-	logger.Info("Generated manifests from template",
+	logger.Info("Generated manifest from single template",
 		"fileName", fileName,
-		"templateVars", vars)
+		"templateVars", vars,
+		"contentSize", len(result))
 
 	return manifests, nil
 }

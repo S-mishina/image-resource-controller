@@ -483,3 +483,121 @@ func isValidK8sName(name string) bool {
 	}
 	return true
 }
+
+func TestProcessor_ProcessTemplateString(t *testing.T) {
+	processor := NewProcessor()
+
+	tests := []struct {
+		name     string
+		template string
+		vars     TemplateVars
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "simple string template",
+			template: "Hello {{ .ServiceName }}!",
+			vars: TemplateVars{
+				ServiceName: "webapp",
+			},
+			expected: "Hello webapp!",
+			wantErr:  false,
+		},
+		{
+			name:     "path template with prefix",
+			template: "{{ .TagPrefix }}/deployments/{{ .ServiceName }}.yaml",
+			vars: TemplateVars{
+				TagPrefix:   "dev",
+				ServiceName: "webapp",
+			},
+			expected: "dev/deployments/webapp.yaml",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := processor.ProcessTemplateString(tt.template, tt.vars)
+			if tt.wantErr && err == nil {
+				t.Error("Expected error but got none")
+				return
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestProcessor_ProcessPathTemplate(t *testing.T) {
+	processor := NewProcessor()
+
+	tests := []struct {
+		name     string
+		template string
+		vars     TemplateVars
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "simple path",
+			template: "deployments/{{ .ServiceName }}.yaml",
+			vars: TemplateVars{
+				ServiceName: "webapp",
+			},
+			expected: "deployments/webapp.yaml",
+			wantErr:  false,
+		},
+		{
+			name:     "path with prefix and default",
+			template: "{{ .TagPrefix | default \"default\" }}/services/{{ .ServiceName }}.yaml",
+			vars: TemplateVars{
+				TagPrefix:   "staging",
+				ServiceName: "api",
+			},
+			expected: "staging/services/api.yaml",
+			wantErr:  false,
+		},
+		{
+			name:     "path with default when prefix is empty",
+			template: "{{ .TagPrefix | default \"default\" }}/configs/{{ .ServiceName }}-config.yaml",
+			vars: TemplateVars{
+				TagPrefix:   "", // empty prefix
+				ServiceName: "worker",
+			},
+			expected: "default/configs/worker-config.yaml",
+			wantErr:  false,
+		},
+		{
+			name:     "path with whitespace (should be trimmed)",
+			template: "  {{ .TagPrefix }}/deployments/{{ .ServiceName }}.yaml  ",
+			vars: TemplateVars{
+				TagPrefix:   "prod",
+				ServiceName: "frontend",
+			},
+			expected: "prod/deployments/frontend.yaml",
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := processor.ProcessPathTemplate(tt.template, tt.vars)
+			if tt.wantErr && err == nil {
+				t.Error("Expected error but got none")
+				return
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
