@@ -42,6 +42,129 @@ graph TB
     style SKIP fill:#fff3e0
 ```
 
+## User Flow & Use Cases
+
+### End-to-End User Flow
+
+```mermaid
+graph TD
+    DEV[Developer] -->|1. Push Image| ECR[AWS ECR Repository]
+    ECR -->|2. Image: myapp:dev-v1.2.0| POLICY[ImageResourcePolicy]
+    
+    POLICY -->|3. Pattern Match + Extract Prefix| DETECT[Detection Manager]
+    DETECT -->|4. Create ImageDetected Resource| ID[ImageDetected: dev-v1.2.0]
+    
+    ID -->|5. Watch Event| CREATE[Creation Manager]
+    CREATE -->|6. Check Existing Resources| CACHE[Image Usage Cache]
+    
+    CACHE -->|7. No dev-* prefix found| TEMPLATE[Apply ResourceTemplate]
+    TEMPLATE -->|8. Generate Manifest| GIT[Git Repository]
+    GIT -->|9. Commit & Push| GITOPS[GitOps Tool: Flux/ArgoCD]
+    
+    GITOPS -->|10. Deploy| K8S[Kubernetes Cluster]
+    K8S -->|11. Update Cache| CACHE
+    
+    %% Alternative flow for existing images
+    CACHE -.->|7a. dev-* prefix exists| SKIP[Skip Creation]
+    SKIP -.->|Delegate to GitOps| GITOPS
+    
+    style DEV fill:#e1f5fe
+    style ECR fill:#fff3e0
+    style POLICY fill:#f3e5f5
+    style SKIP fill:#ffebee
+```
+
+### Use Case: Multi-Environment Pipeline
+
+```mermaid
+graph LR
+    subgraph "Development Flow"
+        DEV1[Developer A<br/>Push: myapp:dev-v1.2.0]
+        DEV2[Developer B<br/>Push: myapp:dev-v1.3.0]
+    end
+    
+    subgraph "Staging Flow"  
+        STAGE1[QA Team<br/>Push: myapp:staging-v1.2.0]
+        STAGE2[QA Team<br/>Push: myapp:staging-v1.2.1]
+    end
+    
+    subgraph "Production Flow"
+        PROD1[Release Manager<br/>Push: myapp:prod-v1.2.0]
+        PROD2[Release Manager<br/>Push: myapp:prod-v1.2.1]
+    end
+    
+    DEV1 --> CONTROLLER[Image Resource Controller]
+    DEV2 --> CONTROLLER
+    STAGE1 --> CONTROLLER
+    STAGE2 --> CONTROLLER
+    PROD1 --> CONTROLLER
+    PROD2 --> CONTROLLER
+    
+    CONTROLLER --> DECISION{Tag Prefix<br/>Extraction}
+    
+    DECISION -->|dev prefix| DEVK8S[Dev Cluster<br/>✅ New manifest created]
+    DECISION -->|staging prefix| STAGEK8S[Staging Cluster<br/>✅ New manifest created]  
+    DECISION -->|prod prefix| PRODK8S[Production Cluster<br/>✅ New manifest created]
+    
+    DEV2 -.->|Same dev prefix| DEVSKIP[Dev: Skip creation<br/>🔄 GitOps handles update]
+    STAGE2 -.->|Same staging prefix| STAGESKIP[Staging: Skip creation<br/>🔄 GitOps handles update]
+    PROD2 -.->|Same prod prefix| PRODSKIP[Production: Skip creation<br/>🔄 GitOps handles update]
+    
+    style CONTROLLER fill:#e8f5e8
+    style DEVK8S fill:#e3f2fd
+    style STAGEK8S fill:#fff8e1
+    style PRODK8S fill:#fce4ec
+    style DEVSKIP fill:#f1f8e9
+    style STAGESKIP fill:#fffde7
+    style PRODSKIP fill:#fdf2f8
+```
+
+### Use Case: Integration with GitOps Tools
+
+```mermaid
+graph TB
+    subgraph "Image Detection Phase"
+        ECR[ECR: myapp:dev-v2.0.0]
+        IRP[ImageResourcePolicy<br/>Extract prefix: dev]
+        ID[ImageDetected<br/>tagPrefix: dev]
+        ECR --> IRP --> ID
+    end
+    
+    subgraph "Resource Generation Phase"
+        ID --> CM[Creation Manager]
+        CM --> CHECK{Check Existing<br/>dev-* prefix?}
+        CHECK -->|Not Found| RT[ResourceTemplate]
+        CHECK -->|Found| SKIP[Skip & Log]
+        RT --> MANIFEST[Generate Manifest]
+        MANIFEST --> GITREPO[Git Repository]
+    end
+    
+    subgraph "GitOps Deployment Phase"
+        GITREPO --> FLUX[Flux Controller]
+        GITREPO --> ARGO[ArgoCD Application]
+        
+        FLUX --> |Sync| FLUXDEPLOY[Deployment in Dev NS]
+        ARGO --> |Sync| ARGODEPLOY[ArgoCD App in Dev NS]
+        
+        FLUXDEPLOY --> DEVCLUSTER[Dev Cluster]
+        ARGODEPLOY --> DEVCLUSTER
+    end
+    
+    subgraph "Version Update Flow"
+        NEWECR[ECR: myapp:dev-v2.0.1]
+        NEWECR -.-> IRP2[Same Policy]
+        IRP2 -.-> NEWCHECK{Same dev prefix?}
+        NEWCHECK -.->|Yes| DELEGATE[Delegate to GitOps<br/>for version update]
+        DELEGATE -.-> FLUX
+        DELEGATE -.-> ARGO
+    end
+    
+    style CHECK fill:#e1f5fe
+    style SKIP fill:#ffebee  
+    style DELEGATE fill:#f3e5f5
+    style DEVCLUSTER fill:#e8f5e8
+```
+
 ## Key Features
 
 ### Image Detection
