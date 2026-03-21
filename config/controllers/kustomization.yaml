@@ -1,18 +1,28 @@
 # Configuration for deploying both controllers separately
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
 namespace: image-resource-controller-system
 
 # Create the namespace if it doesn't exist
 resources:
-- namespace.yaml
-- ../crd
-- ../rbac
-- detection-manager.yaml
-- creation-manager.yaml
-- metrics-services.yaml
+  - namespace.yaml
+  - ../crd
+  - ../rbac
+  - detection-manager.yaml
+  - creation-manager.yaml
+  - metrics-services.yaml
 
 # Common labels applied to all resources
 labels:
-- includeSelectors: true
-  pairs:
-    app.kubernetes.io/name: image-resource-controller
-    app.kubernetes.io/managed-by: kustomize
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/name: image-resource-controller
+      app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: image-detection-controller
+    newName: ghcr.io/s-mishina/image-detection-controller
+    newTag: latest
+  - name: resource-creation-controller
+    newName: ghcr.io/s-mishina/resource-creation-controller
+    newTag: latest
