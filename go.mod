@@ -13,7 +13,7 @@ require (
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.34.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.37.0
 	k8s.io/apimachinery v0.30.1
 	k8s.io/client-go v0.30.1
