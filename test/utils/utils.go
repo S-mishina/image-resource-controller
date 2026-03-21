@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package utils provides helper functions for E2E tests.
-package utils
+package utils //nolint:revive // standard test utility package name
 
 import (
 	"fmt"

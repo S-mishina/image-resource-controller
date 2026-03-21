@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package controller implements Kubernetes controllers for image resource management.
 package controller
 
 import (
