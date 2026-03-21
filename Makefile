@@ -155,6 +155,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 .PHONY: build-controllers-installer
 build-controllers-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and both controllers deployment.
 	mkdir -p dist
+	cd config/controllers && $(KUSTOMIZE) edit set image image-detection-controller=${DETECTION_IMG} resource-creation-controller=${CREATION_IMG}
 	$(KUSTOMIZE) build config/controllers > dist/controllers-install.yaml
 
 .PHONY: deploy-controllers

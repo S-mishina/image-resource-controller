@@ -1,5 +1,9 @@
 # Image Resource Controller
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.23%2B-blue?logo=go)](https://go.dev/)
+[![Kubernetes Version](https://img.shields.io/badge/Kubernetes-v1.30%2B-blue?logo=kubernetes)](https://kubernetes.io/)
+
 Image Resource Controller is a Kubernetes Operator that
 automatically detects container images from AWS ECR,
 generates Kubernetes resources, and commits them to
@@ -338,30 +342,46 @@ status:
 
 ### Prerequisites
 
-- Kubernetes v1.11.3+
-- Go 1.23.0+
-- Docker 17.03+
+- Kubernetes / Go / Docker (versions are shown in badges above)
 - Access permissions to AWS ECR
 
 ### Installation
 
-- **Install CRDs**
+#### Method 1: kubectl apply (Recommended, v0.0.2+)
 
 ```bash
-make install
+VERSION=v0.0.2
+kubectl apply --server-side -f https://github.com/S-mishina/image-resource-controller/releases/download/${VERSION}/controllers-install.yaml
 ```
 
-- **Deploy Controllers**
+#### Method 2: Kustomize remote reference
 
 ```bash
-# Build and push image
-make docker-build docker-push IMG=your-registry/image-resource-controller:latest
+VERSION=v0.0.2
+URL="https://github.com/S-mishina"
+URL="${URL}/image-resource-controller"
+kustomize build \
+  "${URL}/config/controllers?ref=${VERSION}" \
+  | kubectl apply --server-side -f -
+```
 
-# Deploy Detection Manager
-make deploy-detection IMG=your-registry/image-resource-controller:latest
+#### Method 3: Container images from GHCR
 
-# Deploy Creation Manager
-make deploy-creation IMG=your-registry/image-resource-controller:latest
+```bash
+docker pull ghcr.io/s-mishina/image-detection-controller:<VERSION>
+docker pull ghcr.io/s-mishina/resource-creation-controller:<VERSION>
+```
+
+#### Method 4: Build from source
+
+```bash
+# Build and push images
+make docker-build docker-push \
+  DETECTION_IMG=your-registry/image-detection-controller:latest \
+  CREATION_IMG=your-registry/resource-creation-controller:latest
+
+# Deploy controllers
+make deploy-controllers
 ```
 
 ### AWS Authentication Setup

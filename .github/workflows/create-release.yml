@@ -31,6 +31,8 @@ jobs:
       environment: release
       pre-release-steps: >-
         make build-controllers-installer
+        DETECTION_IMG=ghcr.io/s-mishina/image-detection-controller:${{ inputs.version }}
+        CREATION_IMG=ghcr.io/s-mishina/resource-creation-controller:${{ inputs.version }}
       release-assets: dist/controllers-install.yaml
       install-instructions: >-
         ```kubectl apply --server-side -f
