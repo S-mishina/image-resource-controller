@@ -20,7 +20,7 @@ import (
 	"context"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive // Ginkgo DSL
-	. "github.com/onsi/gomega" //nolint:revive // Gomega DSL
+	. "github.com/onsi/gomega"    //nolint:revive // Gomega DSL
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
