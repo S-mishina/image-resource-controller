@@ -31,8 +31,6 @@ import (
 	"github.com/S-mishina/image-resource-controller/test/utils"
 )
 
-const namespace = "image-resource-controller-system"
-
 var _ = Describe("controller", Ordered, func() {
 	BeforeAll(func() {
 		By("installing prometheus operator")
