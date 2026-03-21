@@ -1,0 +1,16 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    paths-ignore:
+      - '*.md'
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+    uses: S-mishina/reusable-workflows/.github/workflows/go-lint.yml@main

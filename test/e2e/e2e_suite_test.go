@@ -20,9 +20,11 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/ginkgo/v2" //nolint:revive // Ginkgo DSL
+	. "github.com/onsi/gomega"    //nolint:revive // Gomega DSL
 )
+
+const namespace = "image-resource-controller-system"
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build e2e_kind
+
 /*
 Copyright 2025.
 
@@ -21,13 +23,13 @@ import (
 	"os/exec"
 	"time"
 
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/gomega"
 
 	"github.com/S-mishina/image-resource-controller/test/utils"
 )
-
-const namespace = "image-resource-controller-system"
 
 var _ = Describe("controller", Ordered, func() {
 	BeforeAll(func() {

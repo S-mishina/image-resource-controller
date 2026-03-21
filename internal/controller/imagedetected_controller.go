@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package controller implements Kubernetes controllers for image resource management.
 package controller
 
 import (
@@ -254,9 +255,10 @@ func (r *ImageDetectedReconciler) updatePhase(ctx context.Context, imageDetected
 		Message:            message,
 	}
 
-	if phase == "Failed" {
+	switch phase {
+	case "Failed":
 		condition.Status = metav1.ConditionFalse
-	} else if phase == "Completed" {
+	case "Completed":
 		condition.Type = "Ready"
 	}
 
@@ -466,7 +468,7 @@ func (r *ImageDetectedReconciler) commitToGit(ctx context.Context, imageDetected
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("Git operation failed: %s", result.Error)
+		return "", fmt.Errorf("git operation failed: %s", result.Error)
 	}
 
 	logger.Info("Successfully committed manifests to Git",

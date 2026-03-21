@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package registry provides container registry abstractions and implementations.
 package registry
 
 import (
@@ -46,12 +47,14 @@ type ECRRegistryAdapter struct {
 	ecrRegistry ecr.ImageRegistry
 }
 
+// NewECRRegistryAdapter creates a new ECR registry adapter.
 func NewECRRegistryAdapter() ImageRegistry {
 	return &ECRRegistryAdapter{
 		ecrRegistry: ecr.NewECRRegistry(),
 	}
 }
 
+// ScanRepository scans a repository via the ECR adapter.
 func (a *ECRRegistryAdapter) ScanRepository(ctx context.Context, config RegistryConfig) ([]ImageInfo, error) {
 	ecrConfig := ecr.RegistryConfig{
 		Type:           ecr.RegistryType(config.Type),
@@ -69,6 +72,7 @@ func (a *ECRRegistryAdapter) ScanRepository(ctx context.Context, config Registry
 	return ecrToRegistryImageInfo(ecrImages), nil
 }
 
+// Authenticate performs authentication via the ECR adapter.
 func (a *ECRRegistryAdapter) Authenticate(ctx context.Context, authConfig AuthConfig) error {
 	ecrAuthConfig := ecr.AuthConfig{
 		Type:     ecr.RegistryType(authConfig.Type),
@@ -89,10 +93,12 @@ func (a *ECRRegistryAdapter) Authenticate(ctx context.Context, authConfig AuthCo
 	return a.ecrRegistry.Authenticate(ctx, ecrAuthConfig)
 }
 
+// GetRegistryType returns the registry type for the ECR adapter.
 func (a *ECRRegistryAdapter) GetRegistryType() RegistryType {
 	return RegistryType(a.ecrRegistry.GetRegistryType())
 }
 
+// ValidateConfig validates the config via the ECR adapter.
 func (a *ECRRegistryAdapter) ValidateConfig(config RegistryConfig) error {
 	ecrConfig := ecr.RegistryConfig{
 		Type:           ecr.RegistryType(config.Type),
@@ -104,10 +110,12 @@ func (a *ECRRegistryAdapter) ValidateConfig(config RegistryConfig) error {
 	return a.ecrRegistry.ValidateConfig(ecrConfig)
 }
 
+// HealthCheck checks health via the ECR adapter.
 func (a *ECRRegistryAdapter) HealthCheck(ctx context.Context) error {
 	return a.ecrRegistry.HealthCheck(ctx)
 }
 
+// ScanRepositoriesByPattern scans repositories by pattern via the ECR adapter.
 func (a *ECRRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error) {
 	ecrImages, err := a.ecrRegistry.ScanRepositoriesByPattern(ctx, region, pattern, maxRepos)
 	if err != nil {
@@ -116,10 +124,12 @@ func (a *ECRRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, regi
 	return ecrToRegistryImageInfo(ecrImages), nil
 }
 
+// FindRepositoriesByPattern finds repositories by pattern via the ECR adapter.
 func (a *ECRRegistryAdapter) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
 	return a.ecrRegistry.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
 }
 
+// ScanAllRepositoriesByImageName scans all repositories by image name via the ECR adapter.
 func (a *ECRRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
 	ecrImages, err := a.ecrRegistry.ScanAllRepositoriesByImageName(ctx, region, imageNamePattern, maxRepos)
 	if err != nil {
@@ -128,6 +138,7 @@ func (a *ECRRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Context,
 	return ecrToRegistryImageInfo(ecrImages), nil
 }
 
+// ScanByImagePattern scans by image pattern via the ECR adapter.
 func (a *ECRRegistryAdapter) ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error) {
 	ecrImages, err := a.ecrRegistry.ScanByImagePattern(ctx, region, imagePattern, maxRepos)
 	if err != nil {
@@ -158,12 +169,14 @@ type GenericRegistryAdapter struct {
 	genericRegistry generic.ImageRegistry
 }
 
+// NewGenericRegistryAdapter creates a new generic registry adapter.
 func NewGenericRegistryAdapter() ImageRegistry {
 	return &GenericRegistryAdapter{
 		genericRegistry: generic.NewGenericRegistry(),
 	}
 }
 
+// ScanRepository scans a repository via the generic adapter.
 func (a *GenericRegistryAdapter) ScanRepository(ctx context.Context, config RegistryConfig) ([]ImageInfo, error) {
 	gConfig := generic.RegistryConfig{
 		Type:           string(config.Type),
@@ -179,6 +192,7 @@ func (a *GenericRegistryAdapter) ScanRepository(ctx context.Context, config Regi
 	return genericToRegistryImageInfo(genericImages), nil
 }
 
+// Authenticate performs authentication via the generic adapter.
 func (a *GenericRegistryAdapter) Authenticate(ctx context.Context, authConfig AuthConfig) error {
 	gAuth := generic.AuthConfig{
 		Type:     string(authConfig.Type),
@@ -189,10 +203,12 @@ func (a *GenericRegistryAdapter) Authenticate(ctx context.Context, authConfig Au
 	return a.genericRegistry.Authenticate(ctx, gAuth)
 }
 
+// GetRegistryType returns the registry type for the generic adapter.
 func (a *GenericRegistryAdapter) GetRegistryType() RegistryType {
 	return RegistryType(a.genericRegistry.GetRegistryType())
 }
 
+// ValidateConfig validates the config via the generic adapter.
 func (a *GenericRegistryAdapter) ValidateConfig(config RegistryConfig) error {
 	gConfig := generic.RegistryConfig{
 		Type:           string(config.Type),
@@ -204,10 +220,12 @@ func (a *GenericRegistryAdapter) ValidateConfig(config RegistryConfig) error {
 	return a.genericRegistry.ValidateConfig(gConfig)
 }
 
+// HealthCheck checks health via the generic adapter.
 func (a *GenericRegistryAdapter) HealthCheck(ctx context.Context) error {
 	return a.genericRegistry.HealthCheck(ctx)
 }
 
+// ScanRepositoriesByPattern scans repositories by pattern via the generic adapter.
 func (a *GenericRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error) {
 	genericImages, err := a.genericRegistry.ScanRepositoriesByPattern(ctx, region, pattern, maxRepos)
 	if err != nil {
@@ -216,10 +234,12 @@ func (a *GenericRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, 
 	return genericToRegistryImageInfo(genericImages), nil
 }
 
+// FindRepositoriesByPattern finds repositories by pattern via the generic adapter.
 func (a *GenericRegistryAdapter) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
 	return a.genericRegistry.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
 }
 
+// ScanAllRepositoriesByImageName scans all repositories by image name via the generic adapter.
 func (a *GenericRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
 	genericImages, err := a.genericRegistry.ScanAllRepositoriesByImageName(ctx, region, imageNamePattern, maxRepos)
 	if err != nil {
@@ -228,6 +248,7 @@ func (a *GenericRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Cont
 	return genericToRegistryImageInfo(genericImages), nil
 }
 
+// ScanByImagePattern scans by image pattern via the generic adapter.
 func (a *GenericRegistryAdapter) ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error) {
 	genericImages, err := a.genericRegistry.ScanByImagePattern(ctx, region, imagePattern, maxRepos)
 	if err != nil {
@@ -300,7 +321,7 @@ func (f *DefaultFactory) GetSupportedTypes() []RegistryType {
 }
 
 // CreateRegistryFromConfig is a convenience function that creates and configures a registry
-func CreateRegistryFromConfig(registryType RegistryType, config RegistryConfig, authConfig AuthConfig) (ImageRegistry, error) {
+func CreateRegistryFromConfig(registryType RegistryType, config RegistryConfig, _ AuthConfig) (ImageRegistry, error) {
 	factory := NewDefaultFactory()
 
 	registry, err := factory.CreateRegistry(registryType)

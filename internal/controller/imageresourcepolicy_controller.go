@@ -37,20 +37,29 @@ import (
 )
 
 const (
-	// Condition types
-	ConditionReady     = "Ready"
+	// ConditionReady indicates whether the resource is ready.
+	ConditionReady = "Ready"
+	// ConditionSuspended indicates whether the resource is suspended.
 	ConditionSuspended = "Suspended"
 
-	// Condition reasons
-	ReasonSuspended        = "Suspended"
-	ReasonReconciling      = "Reconciling"
+	// ReasonSuspended indicates the resource is suspended.
+	ReasonSuspended = "Suspended"
+	// ReasonReconciling indicates the resource is being reconciled.
+	ReasonReconciling = "Reconciling"
+	// ReasonReconcileSuccess indicates the reconciliation succeeded.
 	ReasonReconcileSuccess = "ReconcileSuccess"
-	ReasonReconcileError   = "ReconcileError"
+	// ReasonReconcileError indicates the reconciliation failed.
+	ReasonReconcileError = "ReconcileError"
 
-	// Default requeue intervals
-	DefaultRequeueInterval   = 5 * time.Minute
+	// DefaultRequeueInterval is the default requeue interval.
+	DefaultRequeueInterval = 5 * time.Minute
+	// SuspendedRequeueInterval is the requeue interval for suspended policies.
 	SuspendedRequeueInterval = 30 * time.Minute
-	ErrorRequeueInterval     = 2 * time.Minute
+	// ErrorRequeueInterval is the requeue interval on error.
+	ErrorRequeueInterval = 2 * time.Minute
+
+	// patternTypeRepository is the constant for "repository" pattern type.
+	patternTypeRepository = "repository"
 )
 
 // ImageResourcePolicyReconciler reconciles a ImageResourcePolicy object
@@ -147,40 +156,6 @@ func (r *ImageResourcePolicyReconciler) updateStatusSuspended(ctx context.Contex
 	return ctrl.Result{RequeueAfter: SuspendedRequeueInterval}, nil
 }
 
-// updateStatusReconciling updates status during normal reconciliation
-func (r *ImageResourcePolicyReconciler) updateStatusReconciling(ctx context.Context, policy *automationv1beta1.ImageResourcePolicy) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	// Update ObservedGeneration
-	policy.Status.ObservedGeneration = policy.Generation
-
-	// Update LastScannedTime (even though we're not actually scanning yet)
-	now := metav1.Now()
-	policy.Status.LastScannedTime = &now
-
-	// Remove Suspended condition if it exists
-	r.removeCondition(&policy.Status.Conditions, ConditionSuspended)
-
-	// Set Ready condition to True (for now, will change when we implement actual logic)
-	condition := metav1.Condition{
-		Type:               ConditionReady,
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		Reason:             ReasonReconciling,
-		Message:            "ImageResourcePolicy is being processed (ECR scanning not yet implemented)",
-	}
-	r.setCondition(&policy.Status.Conditions, condition)
-
-	if err := r.Status().Update(ctx, policy); err != nil {
-		logger.Error(err, "Failed to update ImageResourcePolicy status")
-		return ctrl.Result{RequeueAfter: ErrorRequeueInterval}, err
-	}
-
-	logger.Info("ImageResourcePolicy status updated", "state", "reconciling")
-	// Requeue after default interval
-	return ctrl.Result{RequeueAfter: DefaultRequeueInterval}, nil
-}
-
 // setCondition sets or updates a condition in the condition slice
 func (r *ImageResourcePolicyReconciler) setCondition(conditions *[]metav1.Condition, newCondition metav1.Condition) {
 	for i, condition := range *conditions {
@@ -229,7 +204,7 @@ func (r *ImageResourcePolicyReconciler) executeRegistryScan(ctx context.Context,
 	var images []registry.ImageInfo
 
 	switch patternType {
-	case "repository":
+	case patternTypeRepository:
 		images, err = registryClient.ScanRepositoriesByPattern(ctx, region, pattern, maxRepos)
 		if err != nil {
 			return r.updateStatusError(ctx, policy, fmt.Sprintf("Failed to scan repositories by pattern: %v", err))
@@ -579,11 +554,11 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 				Namespace: imagePolicy.Namespace,
 			},
 			DetectedAt: func() metav1.Time {
-			if img.PushedAt.IsZero() {
-				return metav1.Now()
-			}
-			return metav1.Time{Time: img.PushedAt}
-		}(),
+				if img.PushedAt.IsZero() {
+					return metav1.Now()
+				}
+				return metav1.Time{Time: img.PushedAt}
+			}(),
 		},
 		Status: automationv1beta1.ImageDetectedStatus{
 			Phase: "Pending",
@@ -741,7 +716,7 @@ func (r *ImageResourcePolicyReconciler) cleanupExpiredImageDetected(ctx context.
 		if imageDetected.Spec.DetectedAt.Time.Before(cutoffTime) {
 			logger.Info("Deleting expired ImageDetected resource",
 				"name", imageDetected.Name,
-				"detectedAt", imageDetected.Spec.DetectedAt.Time.Format(time.RFC3339),
+				"detectedAt", imageDetected.Spec.DetectedAt.Format(time.RFC3339),
 				"age", time.Since(imageDetected.Spec.DetectedAt.Time).String())
 
 			if err := r.Delete(ctx, &imageDetected); err != nil {
@@ -782,7 +757,7 @@ func (r *ImageResourcePolicyReconciler) processImagesPerRepository(ctx context.C
 	}
 
 	switch patternType {
-	case "repository":
+	case patternTypeRepository:
 		// Get list of matching repositories first
 		repositories, err := registryClient.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
 		if err != nil {
@@ -840,7 +815,7 @@ func (r *ImageResourcePolicyReconciler) processImagesPerRepository(ctx context.C
 	}
 
 	var totalRepositories int
-	if patternType == "repository" {
+	if patternType == patternTypeRepository {
 		if repositories, err := registryClient.FindRepositoriesByPattern(ctx, region, pattern, maxRepos); err == nil {
 			totalRepositories = len(repositories)
 		}

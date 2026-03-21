@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package policy provides image selection policy processing.
 package policy
 
 import (
@@ -28,7 +29,14 @@ import (
 	"github.com/S-mishina/image-resource-controller/internal/registry"
 )
 
-// PolicyProcessor handles image filtering based on policies
+const (
+	// orderAsc is the constant for ascending order.
+	orderAsc = "asc"
+)
+
+// PolicyProcessor handles image filtering based on policies.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type PolicyProcessor struct{}
 
 // NewPolicyProcessor creates a new policy processor
@@ -96,7 +104,7 @@ func (p *PolicyProcessor) applySemverPolicy(images []registry.ImageInfo, policy 
 	})
 
 	// Convert back to ImageInfo
-	var result []registry.ImageInfo
+	result := make([]registry.ImageInfo, 0, len(semverImages))
 	for _, semverImg := range semverImages {
 		result = append(result, semverImg.ImageInfo)
 	}
@@ -201,7 +209,7 @@ func (p *PolicyProcessor) applyAlphabeticalPolicy(images []registry.ImageInfo, p
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].Tag > sorted[j].Tag
 		})
-	case "asc", "": // default to ascending
+	case orderAsc, "": // default to ascending
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].Tag < sorted[j].Tag
 		})
@@ -223,7 +231,7 @@ func (p *PolicyProcessor) GetPolicyDescription(policy automationv1beta1.PolicySp
 	case policy.Alphabetical != nil:
 		order := policy.Alphabetical.Order
 		if order == "" {
-			order = "asc"
+			order = orderAsc
 		}
 		return fmt.Sprintf("Alphabetical order: %s", order)
 	default:
@@ -277,7 +285,7 @@ func (p *PolicyProcessor) ValidatePolicy(policy automationv1beta1.PolicySpec) er
 	}
 
 	if policy.Alphabetical != nil {
-		if policy.Alphabetical.Order != "" && policy.Alphabetical.Order != "asc" && policy.Alphabetical.Order != "desc" {
+		if policy.Alphabetical.Order != "" && policy.Alphabetical.Order != orderAsc && policy.Alphabetical.Order != "desc" {
 			return fmt.Errorf("alphabetical policy order must be 'asc' or 'desc', got '%s'", policy.Alphabetical.Order)
 		}
 	}
@@ -291,7 +299,9 @@ type SemverImage struct {
 	Version   *semver.Version
 }
 
-// PolicyStats represents statistics about policy application
+// PolicyStats represents statistics about policy application.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type PolicyStats struct {
 	TotalImages    int
 	FilteredImages int
