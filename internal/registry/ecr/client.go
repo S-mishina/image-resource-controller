@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package ecr provides an Amazon ECR registry client implementation.
 package ecr
 
 import (
@@ -268,12 +269,6 @@ func extractImageName(repositoryName string) string {
 // buildFullImageURL constructs the full ECR image URL
 func buildFullImageURL(accountID, region, repositoryName, tag string) string {
 	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s", accountID, region, repositoryName, tag)
-}
-
-// extractAccountID extracts AWS account ID from AWS config
-func extractAccountID(_ aws.Config) string {
-	// This will be updated to use actual STS call in getAccountID method
-	return "123456789012"
 }
 
 // setupAssumeRoleAuth configures AssumeRole-based authentication

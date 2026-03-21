@@ -716,7 +716,7 @@ func (r *ImageResourcePolicyReconciler) cleanupExpiredImageDetected(ctx context.
 		if imageDetected.Spec.DetectedAt.Time.Before(cutoffTime) {
 			logger.Info("Deleting expired ImageDetected resource",
 				"name", imageDetected.Name,
-				"detectedAt", imageDetected.Spec.DetectedAt.Time.Format(time.RFC3339),
+				"detectedAt", imageDetected.Spec.DetectedAt.Format(time.RFC3339),
 				"age", time.Since(imageDetected.Spec.DetectedAt.Time).String())
 
 			if err := r.Delete(ctx, &imageDetected); err != nil {
