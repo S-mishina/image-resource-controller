@@ -61,6 +61,95 @@ type ECRRepository struct {
 	ScanTimeout string `json:"scanTimeout,omitempty"`
 }
 
+// GenericRegistryConfig defines a generic Docker Registry V2 configuration
+type GenericRegistryConfig struct {
+	// RegistryURL is the base URL of the registry (e.g., "http://localhost:5000")
+	// +kubebuilder:validation:Required
+	RegistryURL string `json:"registryURL"`
+
+	// RepositoryPattern for pattern-based repository matching (e.g., "team-a/*", "my-service")
+	// Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+	// +optional
+	RepositoryPattern string `json:"repositoryPattern,omitempty"`
+
+	// ImageNamePattern for image name-based matching across all repositories
+	// +optional
+	ImageNamePattern string `json:"imageNamePattern,omitempty"`
+
+	// ImagePattern for combined repository:tag pattern matching (e.g., "app:v*")
+	// +optional
+	ImagePattern string `json:"imagePattern,omitempty"`
+
+	// MaxRepositories limits the maximum number of repositories to scan
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=200
+	// +kubebuilder:default=50
+	MaxRepositories int32 `json:"maxRepositories,omitempty"`
+
+	// Insecure allows connecting to registries over HTTP
+	// +kubebuilder:default=false
+	Insecure bool `json:"insecure,omitempty"`
+
+	// SecretRef for registry credentials (username/password)
+	// +optional
+	SecretRef *SecretRef `json:"secretRef,omitempty"`
+}
+
+// Validate validates the GenericRegistryConfig configuration
+func (g *GenericRegistryConfig) Validate() error {
+	if g.RegistryURL == "" {
+		return fmt.Errorf("registryURL is required")
+	}
+
+	patterns := []string{g.RepositoryPattern, g.ImageNamePattern, g.ImagePattern}
+	nonEmpty := 0
+	for _, p := range patterns {
+		if p != "" {
+			nonEmpty++
+		}
+	}
+
+	if nonEmpty != 1 {
+		return fmt.Errorf("exactly one pattern type must be specified (repositoryPattern, imageNamePattern, or imagePattern)")
+	}
+
+	if g.RepositoryPattern != "" {
+		if err := validateRepositoryPattern(g.RepositoryPattern); err != nil {
+			return fmt.Errorf("invalid repositoryPattern: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetPatternType returns the type of pattern being used
+func (g *GenericRegistryConfig) GetPatternType() string {
+	if g.RepositoryPattern != "" {
+		return "repository"
+	}
+	if g.ImageNamePattern != "" {
+		return "imageName"
+	}
+	if g.ImagePattern != "" {
+		return "image"
+	}
+	return "none"
+}
+
+// GetPattern returns the active pattern value
+func (g *GenericRegistryConfig) GetPattern() string {
+	if g.RepositoryPattern != "" {
+		return g.RepositoryPattern
+	}
+	if g.ImageNamePattern != "" {
+		return g.ImageNamePattern
+	}
+	if g.ImagePattern != "" {
+		return g.ImagePattern
+	}
+	return ""
+}
+
 // PolicySpec defines the image selection policy
 type PolicySpec struct {
 	// PerRepository enables per-repository policy application instead of cross-repository policy
@@ -142,8 +231,14 @@ type TemplateRef struct {
 // ImageResourcePolicySpec defines the desired state of ImageResourcePolicy
 type ImageResourcePolicySpec struct {
 	// ECRRepository defines the ECR repository to monitor
-	// +kubebuilder:validation:Required
-	ECRRepository ECRRepository `json:"ecrRepository"`
+	// Exactly one of ECRRepository or GenericRegistry must be specified
+	// +optional
+	ECRRepository *ECRRepository `json:"ecrRepository,omitempty"`
+
+	// GenericRegistry defines a generic Docker Registry V2 to monitor
+	// Exactly one of ECRRepository or GenericRegistry must be specified
+	// +optional
+	GenericRegistry *GenericRegistryConfig `json:"genericRegistry,omitempty"`
 
 	// Policy defines the image selection criteria
 	// +kubebuilder:validation:Required

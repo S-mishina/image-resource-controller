@@ -29,6 +29,7 @@ const (
 	RegistryTypeGCR       RegistryType = "gcr"
 	RegistryTypeDockerHub RegistryType = "dockerhub"
 	RegistryTypeHarbor    RegistryType = "harbor"
+	RegistryTypeGeneric   RegistryType = "generic"
 )
 
 // ImageInfo represents information about a container image

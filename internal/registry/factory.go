@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/S-mishina/image-resource-controller/internal/registry/ecr"
+	"github.com/S-mishina/image-resource-controller/internal/registry/generic"
 )
 
 // Convert ECR types to registry types for compatibility
@@ -135,6 +136,113 @@ func (a *ECRRegistryAdapter) ScanByImagePattern(ctx context.Context, region, ima
 	return ecrToRegistryImageInfo(ecrImages), nil
 }
 
+// Convert generic types to registry types for compatibility
+func genericToRegistryImageInfo(genericImages []generic.ImageInfo) []ImageInfo {
+	images := make([]ImageInfo, len(genericImages))
+	for i, img := range genericImages {
+		images[i] = ImageInfo{
+			Name:         img.Name,
+			Tag:          img.Tag,
+			Digest:       img.Digest,
+			PushedAt:     img.PushedAt,
+			FullURL:      img.FullURL,
+			Size:         img.Size,
+			Architecture: img.Architecture,
+		}
+	}
+	return images
+}
+
+// GenericRegistryAdapter adapts GenericRegistry to the common interface
+type GenericRegistryAdapter struct {
+	genericRegistry generic.ImageRegistry
+}
+
+func NewGenericRegistryAdapter() ImageRegistry {
+	return &GenericRegistryAdapter{
+		genericRegistry: generic.NewGenericRegistry(),
+	}
+}
+
+func (a *GenericRegistryAdapter) ScanRepository(ctx context.Context, config RegistryConfig) ([]ImageInfo, error) {
+	gConfig := generic.RegistryConfig{
+		Type:           string(config.Type),
+		RepositoryName: config.RepositoryName,
+		Region:         config.Region,
+		RegistryURL:    config.RegistryURL,
+		Namespace:      config.Namespace,
+	}
+	genericImages, err := a.genericRegistry.ScanRepository(ctx, gConfig)
+	if err != nil {
+		return nil, err
+	}
+	return genericToRegistryImageInfo(genericImages), nil
+}
+
+func (a *GenericRegistryAdapter) Authenticate(ctx context.Context, authConfig AuthConfig) error {
+	gAuth := generic.AuthConfig{
+		Type:     string(authConfig.Type),
+		Username: authConfig.Username,
+		Password: authConfig.Password,
+		Token:    authConfig.Token,
+	}
+	return a.genericRegistry.Authenticate(ctx, gAuth)
+}
+
+func (a *GenericRegistryAdapter) GetRegistryType() RegistryType {
+	return RegistryType(a.genericRegistry.GetRegistryType())
+}
+
+func (a *GenericRegistryAdapter) ValidateConfig(config RegistryConfig) error {
+	gConfig := generic.RegistryConfig{
+		Type:           string(config.Type),
+		RepositoryName: config.RepositoryName,
+		Region:         config.Region,
+		RegistryURL:    config.RegistryURL,
+		Namespace:      config.Namespace,
+	}
+	return a.genericRegistry.ValidateConfig(gConfig)
+}
+
+func (a *GenericRegistryAdapter) HealthCheck(ctx context.Context) error {
+	return a.genericRegistry.HealthCheck(ctx)
+}
+
+func (a *GenericRegistryAdapter) ScanRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]ImageInfo, error) {
+	genericImages, err := a.genericRegistry.ScanRepositoriesByPattern(ctx, region, pattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return genericToRegistryImageInfo(genericImages), nil
+}
+
+func (a *GenericRegistryAdapter) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
+	return a.genericRegistry.FindRepositoriesByPattern(ctx, region, pattern, maxRepos)
+}
+
+func (a *GenericRegistryAdapter) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
+	genericImages, err := a.genericRegistry.ScanAllRepositoriesByImageName(ctx, region, imageNamePattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return genericToRegistryImageInfo(genericImages), nil
+}
+
+func (a *GenericRegistryAdapter) ScanByImagePattern(ctx context.Context, region, imagePattern string, maxRepos int32) ([]ImageInfo, error) {
+	genericImages, err := a.genericRegistry.ScanByImagePattern(ctx, region, imagePattern, maxRepos)
+	if err != nil {
+		return nil, err
+	}
+	return genericToRegistryImageInfo(genericImages), nil
+}
+
+// SetRegistryURL sets the registry URL on the underlying generic registry
+func (a *GenericRegistryAdapter) SetRegistryURL(url string) {
+	if gr, ok := a.genericRegistry.(*generic.GenericRegistry); ok {
+		gr.SetRegistryURL(url)
+	}
+}
+
 // DefaultFactory is the default implementation of ImageRegistryFactory
 type DefaultFactory struct {
 	registries map[RegistryType]func() ImageRegistry
@@ -149,6 +257,11 @@ func NewDefaultFactory() ImageRegistryFactory {
 	// Register built-in registry implementations
 	factory.RegisterRegistry(RegistryTypeECR, func() ImageRegistry {
 		return NewECRRegistryAdapter()
+	})
+
+	// Register generic Docker Registry HTTP API V2 implementation
+	factory.RegisterRegistry(RegistryTypeGeneric, func() ImageRegistry {
+		return NewGenericRegistryAdapter()
 	})
 
 	// NOTE: Future registry implementations can be added here
