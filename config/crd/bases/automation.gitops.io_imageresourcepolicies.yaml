@@ -57,7 +57,9 @@ spec:
                     type: object
                 type: object
               ecrRepository:
-                description: ECRRepository defines the ECR repository to monitor
+                description: |-
+                  ECRRepository defines the ECR repository to monitor
+                  Exactly one of ECRRepository or GenericRegistry must be specified
                 properties:
                   imageNamePattern:
                     description: |-
@@ -100,6 +102,52 @@ spec:
                     type: string
                 required:
                 - region
+                type: object
+              genericRegistry:
+                description: |-
+                  GenericRegistry defines a generic Docker Registry V2 to monitor
+                  Exactly one of ECRRepository or GenericRegistry must be specified
+                properties:
+                  imageNamePattern:
+                    description: ImageNamePattern for image name-based matching across
+                      all repositories
+                    type: string
+                  imagePattern:
+                    description: ImagePattern for combined repository:tag pattern
+                      matching (e.g., "app:v*")
+                    type: string
+                  insecure:
+                    default: false
+                    description: Insecure allows connecting to registries over HTTP
+                    type: boolean
+                  maxRepositories:
+                    default: 50
+                    description: MaxRepositories limits the maximum number of repositories
+                      to scan
+                    format: int32
+                    maximum: 200
+                    minimum: 1
+                    type: integer
+                  registryURL:
+                    description: RegistryURL is the base URL of the registry (e.g.,
+                      "http://localhost:5000")
+                    type: string
+                  repositoryPattern:
+                    description: |-
+                      RepositoryPattern for pattern-based repository matching (e.g., "team-a/*", "my-service")
+                      Exactly one of RepositoryPattern, ImageNamePattern, or ImagePattern must be specified
+                    type: string
+                  secretRef:
+                    description: SecretRef for registry credentials (username/password)
+                    properties:
+                      name:
+                        description: Name of the Secret resource
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - registryURL
                 type: object
               policy:
                 description: Policy defines the image selection criteria
@@ -176,7 +224,6 @@ spec:
                 minimum: 0
                 type: integer
             required:
-            - ecrRepository
             - policy
             - templateRef
             type: object
