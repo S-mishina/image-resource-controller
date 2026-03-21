@@ -124,10 +124,8 @@ func (p *Processor) BuildTemplateVars(fullImageName, imageTag, imageDigest strin
 		Variables:     additionalVars,
 	}
 
-	// Parse ECR URL
-	if err := p.parseECRURL(fullImageName, &vars); err != nil {
-		return vars, fmt.Errorf("failed to parse ECR URL: %w", err)
-	}
+	// Parse image URL (ECR or generic)
+	p.parseImageURL(fullImageName, &vars)
 
 	// Generate Kubernetes compatible name
 	vars.K8sCompatibleName = p.sanitizeForK8s(vars.ServiceName)
@@ -148,10 +146,8 @@ func (p *Processor) BuildTemplateVarsWithPrefix(fullImageName, imageTag, imageDi
 		Variables:     additionalVars,
 	}
 
-	// Parse ECR URL
-	if err := p.parseECRURL(fullImageName, &vars); err != nil {
-		return vars, fmt.Errorf("failed to parse ECR URL: %w", err)
-	}
+	// Parse image URL (ECR or generic)
+	p.parseImageURL(fullImageName, &vars)
 
 	// Generate Kubernetes compatible name
 	vars.K8sCompatibleName = p.sanitizeForK8s(vars.ServiceName)
@@ -162,14 +158,24 @@ func (p *Processor) BuildTemplateVarsWithPrefix(fullImageName, imageTag, imageDi
 	return vars, nil
 }
 
-// parseECRURL parses ECR image URL and populates template variables
-func (p *Processor) parseECRURL(fullImageName string, vars *TemplateVars) error {
+// parseImageURL parses image URL and populates template variables.
+// Supports ECR URLs and generic registry URLs.
+func (p *Processor) parseImageURL(fullImageName string, vars *TemplateVars) {
+	// Try ECR format first
+	if p.tryParseECRURL(fullImageName, vars) {
+		return
+	}
+	// Fallback to generic URL parsing
+	p.parseGenericImageURL(fullImageName, vars)
+}
+
+// tryParseECRURL attempts to parse an ECR image URL. Returns true if successful.
+func (p *Processor) tryParseECRURL(fullImageName string, vars *TemplateVars) bool {
 	// Remove tag/digest from URL for parsing
 	baseURL := fullImageName
 	if strings.Contains(baseURL, ":") && !strings.Contains(baseURL, "://") {
 		parts := strings.Split(baseURL, ":")
 		if len(parts) >= 2 {
-			// Keep everything except the last part (tag)
 			baseURL = strings.Join(parts[:len(parts)-1], ":")
 		}
 	}
@@ -179,7 +185,7 @@ func (p *Processor) parseECRURL(fullImageName string, vars *TemplateVars) error 
 	matches := ecrPattern.FindStringSubmatch(baseURL)
 
 	if len(matches) != 4 {
-		return fmt.Errorf("invalid ECR URL format: %s", fullImageName)
+		return false
 	}
 
 	vars.AccountID = matches[1]
@@ -188,6 +194,40 @@ func (p *Processor) parseECRURL(fullImageName string, vars *TemplateVars) error 
 	vars.Registry = fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", vars.AccountID, vars.Region)
 
 	// Parse hierarchical repository name
+	p.parseRepositoryName(vars)
+	return true
+}
+
+// parseGenericImageURL parses a generic registry image URL (e.g., "registry:5000/repo:tag", "http://host/repo:tag")
+func (p *Processor) parseGenericImageURL(fullImageName string, vars *TemplateVars) {
+	imageRef := fullImageName
+
+	// Strip scheme (http:// or https://)
+	if idx := strings.Index(imageRef, "://"); idx != -1 {
+		imageRef = imageRef[idx+3:]
+	}
+
+	// Split registry/path and tag
+	// e.g., "172.19.0.5:5000/test-app:v1.0.0" → registry="172.19.0.5:5000", path="test-app", tag="v1.0.0"
+	var pathAndRepo string
+	if slashIdx := strings.Index(imageRef, "/"); slashIdx != -1 {
+		vars.Registry = imageRef[:slashIdx]
+		pathAndRepo = imageRef[slashIdx+1:]
+	} else {
+		pathAndRepo = imageRef
+	}
+
+	// Remove tag from path
+	if colonIdx := strings.LastIndex(pathAndRepo, ":"); colonIdx != -1 {
+		pathAndRepo = pathAndRepo[:colonIdx]
+	}
+
+	vars.RepositoryName = pathAndRepo
+	p.parseRepositoryName(vars)
+}
+
+// parseRepositoryName extracts ServiceName and Namespace from RepositoryName
+func (p *Processor) parseRepositoryName(vars *TemplateVars) {
 	if strings.Contains(vars.RepositoryName, "/") {
 		parts := strings.Split(vars.RepositoryName, "/")
 		vars.ServiceName = parts[len(parts)-1]
@@ -198,8 +238,6 @@ func (p *Processor) parseECRURL(fullImageName string, vars *TemplateVars) error 
 		vars.ServiceName = vars.RepositoryName
 		vars.Namespace = ""
 	}
-
-	return nil
 }
 
 // sanitizeForK8s converts a name to Kubernetes DNS-1123 compliant format

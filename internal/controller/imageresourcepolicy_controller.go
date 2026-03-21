@@ -578,7 +578,12 @@ func (r *ImageResourcePolicyReconciler) createImageDetectedIfNotExists(ctx conte
 				Name:      imagePolicy.Name,
 				Namespace: imagePolicy.Namespace,
 			},
-			DetectedAt: metav1.Time{Time: img.PushedAt},
+			DetectedAt: func() metav1.Time {
+			if img.PushedAt.IsZero() {
+				return metav1.Now()
+			}
+			return metav1.Time{Time: img.PushedAt}
+		}(),
 		},
 		Status: automationv1beta1.ImageDetectedStatus{
 			Phase: "Pending",

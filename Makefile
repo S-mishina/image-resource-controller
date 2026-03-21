@@ -69,6 +69,10 @@ test: manifests generate fmt vet envtest ## Run tests.
 test-e2e:
 	go test ./test/e2e/ -v -ginkgo.v
 
+.PHONY: test-e2e-generic  # Run E2E tests with a local Docker registry (registry:2)
+test-e2e-generic:
+	go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus="Generic Registry"
+
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
 	$(GOLANGCI_LINT) run

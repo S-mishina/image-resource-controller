@@ -129,6 +129,127 @@ func GetNonEmptyLines(output string) []string {
 	return res
 }
 
+// StartE2EInfra starts the E2E infrastructure (registry + gitea) via docker compose
+func StartE2EInfra() error {
+	projectDir, _ := GetProjectDir()
+	composePath := projectDir + "/test/e2e/docker-compose.yaml"
+
+	// Ensure kind network exists (Kind creates it, but we need it before compose)
+	cmd := exec.Command("docker", "network", "create", "kind")
+	// Ignore error if network already exists
+	_, _ = cmd.CombinedOutput()
+
+	cmd = exec.Command("docker", "compose", "-f", composePath, "up", "-d", "--wait")
+	_, err := Run(cmd)
+	return err
+}
+
+// StopE2EInfra stops the E2E infrastructure
+func StopE2EInfra() {
+	projectDir, _ := GetProjectDir()
+	composePath := projectDir + "/test/e2e/docker-compose.yaml"
+
+	cmd := exec.Command("docker", "compose", "-f", composePath, "down", "-v")
+	if _, err := Run(cmd); err != nil {
+		warnError(err)
+	}
+}
+
+// PushTestImageToRegistry pushes a test image to the local registry
+func PushTestImageToRegistry(registryURL, repository, tag string) error {
+	sourceImage := "busybox:latest"
+	targetImage := fmt.Sprintf("%s/%s:%s", registryURL, repository, tag)
+
+	// Pull source image
+	cmd := exec.Command("docker", "pull", sourceImage)
+	if _, err := Run(cmd); err != nil {
+		return fmt.Errorf("failed to pull %s: %w", sourceImage, err)
+	}
+
+	// Tag for local registry
+	cmd = exec.Command("docker", "tag", sourceImage, targetImage)
+	if _, err := Run(cmd); err != nil {
+		return fmt.Errorf("failed to tag image: %w", err)
+	}
+
+	// Push to local registry
+	cmd = exec.Command("docker", "push", targetImage)
+	if _, err := Run(cmd); err != nil {
+		return fmt.Errorf("failed to push %s: %w", targetImage, err)
+	}
+
+	return nil
+}
+
+// SetupGiteaRepo creates a test user and repository in Gitea
+func SetupGiteaRepo(giteaURL, username, password, repoName string) error {
+	// Create admin user via docker exec (most reliable for fresh Gitea)
+	cmd := exec.Command("docker", "exec", "--user", "git", "kind-gitea",
+		"gitea", "admin", "user", "create",
+		"--admin",
+		"--username", "gitea_admin",
+		"--password", "gitea_admin",
+		"--email", "admin@test.local",
+	)
+	// Ignore error if admin already exists
+	_, _ = cmd.CombinedOutput()
+
+	// Create test user via admin API
+	cmd = exec.Command("curl", "-s", "-X", "POST",
+		fmt.Sprintf("%s/api/v1/admin/users", giteaURL),
+		"-H", "Content-Type: application/json",
+		"-u", "gitea_admin:gitea_admin",
+		"-d", fmt.Sprintf(`{
+			"username": "%s",
+			"password": "%s",
+			"email": "%s@test.local",
+			"must_change_password": false,
+			"visibility": "public"
+		}`, username, password, username),
+	)
+	output, _ := Run(cmd)
+	_, _ = fmt.Fprintf(GinkgoWriter, "Create user response: %s\n", string(output))
+
+	// Create repository via user API
+	cmd = exec.Command("curl", "-s", "-X", "POST",
+		fmt.Sprintf("%s/api/v1/user/repos", giteaURL),
+		"-H", "Content-Type: application/json",
+		"-u", fmt.Sprintf("%s:%s", username, password),
+		"-d", fmt.Sprintf(`{
+			"name": "%s",
+			"auto_init": true,
+			"default_branch": "main"
+		}`, repoName),
+	)
+	output, err := Run(cmd)
+	_, _ = fmt.Fprintf(GinkgoWriter, "Create repo response: %s\n", string(output))
+	return err
+}
+
+// CreateKindClusterWithRegistry creates a Kind cluster with local registry support
+func CreateKindClusterWithRegistry(clusterName string) error {
+	projectDir, _ := GetProjectDir()
+	configPath := projectDir + "/test/e2e/kind-config.yaml"
+
+	cmd := exec.Command("kind", "create", "cluster",
+		"--name", clusterName,
+		"--config", configPath,
+	)
+	if _, err := Run(cmd); err != nil {
+		return fmt.Errorf("failed to create kind cluster: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteKindCluster deletes a Kind cluster
+func DeleteKindCluster(clusterName string) {
+	cmd := exec.Command("kind", "delete", "cluster", "--name", clusterName)
+	if _, err := Run(cmd); err != nil {
+		warnError(err)
+	}
+}
+
 // GetProjectDir will return the directory where the project is
 func GetProjectDir() (string, error) {
 	wd, err := os.Getwd()
