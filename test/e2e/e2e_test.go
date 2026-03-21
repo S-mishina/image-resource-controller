@@ -1,3 +1,5 @@
+//go:build e2e_kind
+
 /*
 Copyright 2025.
 

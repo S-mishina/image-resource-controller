@@ -69,11 +69,11 @@ test: manifests generate fmt vet setup-envtest ## Run tests.
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.
 test-e2e:
-	go test ./test/e2e/ -v -ginkgo.v
+	go test -tags e2e_kind ./test/e2e/ -v -ginkgo.v
 
 .PHONY: test-e2e-generic  # Run E2E tests with a local Docker registry (registry:2)
 test-e2e-generic:
-	go test ./test/e2e/ -v -ginkgo.v -ginkgo.focus="Generic Registry"
+	go test ./test/e2e/ -v -ginkgo.v
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter
