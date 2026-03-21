@@ -15,5 +15,3 @@ jobs:
       contents: read
       pull-requests: write
     uses: S-mishina/reusable-workflows/.github/workflows/go-test.yml@main
-    with:
-      test-command: "make test"
