@@ -38,8 +38,24 @@ jobs:
 
       - name: Verify infrastructure is ready
         run: |
-          curl -s --retry 10 --retry-delay 3 --retry-connrefused http://localhost:3000 > /dev/null
-          curl -s --retry 10 --retry-delay 3 --retry-connrefused http://localhost:5001/v2/ > /dev/null
+          echo "Waiting for registry..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5001/v2/ > /dev/null 2>&1; then
+              echo "Registry is ready"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 3
+          done
+          echo "Waiting for Gitea..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/api/v1/version > /dev/null 2>&1; then
+              echo "Gitea is ready"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 3
+          done
 
       - name: Running E2E Tests
         run: |
