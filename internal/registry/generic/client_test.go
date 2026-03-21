@@ -38,46 +38,46 @@ func setupMockRegistry() *httptest.Server {
 	})
 
 	// GET /v2/_catalog - List repositories
-	mux.HandleFunc("/v2/_catalog", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/_catalog", func(w http.ResponseWriter, _ *http.Request) {
 		resp := catalogResponse{
 			Repositories: []string{"app-a", "app-b", "team/service-x"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	// GET /v2/app-a/tags/list
-	mux.HandleFunc("/v2/app-a/tags/list", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/app-a/tags/list", func(w http.ResponseWriter, _ *http.Request) {
 		resp := tagsResponse{
 			Name: "app-a",
 			Tags: []string{"v1.0.0", "v1.1.0", "latest"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	// GET /v2/app-b/tags/list
-	mux.HandleFunc("/v2/app-b/tags/list", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/app-b/tags/list", func(w http.ResponseWriter, _ *http.Request) {
 		resp := tagsResponse{
 			Name: "app-b",
 			Tags: []string{"v2.0.0"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	// GET /v2/team/service-x/tags/list
-	mux.HandleFunc("/v2/team/service-x/tags/list", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/team/service-x/tags/list", func(w http.ResponseWriter, _ *http.Request) {
 		resp := tagsResponse{
 			Name: "team/service-x",
 			Tags: []string{"v1.0.0"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 
 	// GET /v2/app-a/manifests/<tag>
-	mux.HandleFunc("/v2/app-a/manifests/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v2/app-a/manifests/", func(w http.ResponseWriter, _ *http.Request) {
 		manifest := manifestResponse{
 			SchemaVersion: 2,
 			MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
@@ -96,7 +96,7 @@ func setupMockRegistry() *httptest.Server {
 
 		w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
 		w.Header().Set("Docker-Content-Digest", "sha256:abc123def456")
-		json.NewEncoder(w).Encode(manifest)
+		_ = json.NewEncoder(w).Encode(manifest)
 	})
 
 	return httptest.NewServer(mux)

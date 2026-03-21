@@ -188,7 +188,7 @@ func TestWriteFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	ops := NewOperations(tempDir, AuthConfig{Type: AuthTypeNone})
 

@@ -21,15 +21,22 @@ import (
 	"time"
 )
 
-// RegistryType represents the type of container registry
+// RegistryType represents the type of container registry.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type RegistryType string
 
 const (
-	RegistryTypeECR       RegistryType = "ecr"
-	RegistryTypeGCR       RegistryType = "gcr"
+	// RegistryTypeECR is the Amazon ECR registry type.
+	RegistryTypeECR RegistryType = "ecr"
+	// RegistryTypeGCR is the Google Container Registry type.
+	RegistryTypeGCR RegistryType = "gcr"
+	// RegistryTypeDockerHub is the Docker Hub registry type.
 	RegistryTypeDockerHub RegistryType = "dockerhub"
-	RegistryTypeHarbor    RegistryType = "harbor"
-	RegistryTypeGeneric   RegistryType = "generic"
+	// RegistryTypeHarbor is the Harbor registry type.
+	RegistryTypeHarbor RegistryType = "harbor"
+	// RegistryTypeGeneric is the generic Docker Registry V2 type.
+	RegistryTypeGeneric RegistryType = "generic"
 )
 
 // ImageInfo represents information about a container image
@@ -56,7 +63,9 @@ type ImageInfo struct {
 	Architecture string
 }
 
-// RegistryConfig represents configuration for accessing a registry
+// RegistryConfig represents configuration for accessing a registry.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type RegistryConfig struct {
 	// Type is the registry type
 	Type RegistryType

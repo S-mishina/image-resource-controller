@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package git provides Git operations for the image resource controller.
 package git
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,11 +41,16 @@ import (
 type AuthType string
 
 const (
-	AuthTypeNone        AuthType = "none"
-	AuthTypeHTTP        AuthType = "http"   // Username + Password/Token
-	AuthTypeSSH         AuthType = "ssh"    // SSH Key
-	AuthTypeGitHubToken AuthType = "github" // GitHub Personal Access Token
-	AuthTypeGitLabToken AuthType = "gitlab" // GitLab Access Token
+	// AuthTypeNone represents no authentication.
+	AuthTypeNone AuthType = "none"
+	// AuthTypeHTTP represents HTTP basic authentication.
+	AuthTypeHTTP AuthType = "http"
+	// AuthTypeSSH represents SSH key authentication.
+	AuthTypeSSH AuthType = "ssh"
+	// AuthTypeGitHubToken represents GitHub Personal Access Token authentication.
+	AuthTypeGitHubToken AuthType = "github"
+	// AuthTypeGitLabToken represents GitLab Access Token authentication.
+	AuthTypeGitLabToken AuthType = "gitlab"
 )
 
 // AuthConfig represents Git authentication configuration
@@ -139,7 +144,7 @@ func (g *Operations) CloneAndCommitFiles(ctx context.Context, repoURL, branch st
 
 	// Create temporary working directory if not specified
 	if g.workingDir == "" {
-		tempDir, err := ioutil.TempDir("", "git-operations-*")
+		tempDir, err := os.MkdirTemp("", "git-operations-*")
 		if err != nil {
 			result.Error = fmt.Sprintf("Failed to create temp directory: %v", err)
 			return result, err
@@ -148,7 +153,7 @@ func (g *Operations) CloneAndCommitFiles(ctx context.Context, repoURL, branch st
 
 		// Cleanup temp directory after operation
 		defer func() {
-			os.RemoveAll(tempDir)
+			_ = os.RemoveAll(tempDir)
 		}()
 	}
 
@@ -222,9 +227,10 @@ func (g *Operations) setupAuth() error {
 
 		// For token-based auth, use token as password
 		if g.authConfig.Token != "" {
-			if g.authConfig.Type == AuthTypeGitHubToken {
+			switch g.authConfig.Type {
+			case AuthTypeGitHubToken:
 				username = "git" // GitHub convention
-			} else if g.authConfig.Type == AuthTypeGitLabToken {
+			case AuthTypeGitLabToken:
 				username = "oauth2" // GitLab convention
 			}
 			password = g.authConfig.Token
@@ -256,7 +262,7 @@ func (g *Operations) setupSSHAuth() error {
 
 	// Load private key from file or direct content
 	if g.authConfig.SSHPrivateKeyFile != "" {
-		privateKey, err = ioutil.ReadFile(g.authConfig.SSHPrivateKeyFile)
+		privateKey, err = os.ReadFile(g.authConfig.SSHPrivateKeyFile)
 		if err != nil {
 			return fmt.Errorf("failed to read SSH private key file: %w", err)
 		}
@@ -332,7 +338,7 @@ func (g *Operations) cloneRepository(ctx context.Context, repoURL, branch string
 
 // writeFiles writes the provided files to the repository
 func (g *Operations) writeFiles(files map[string]string) ([]string, error) {
-	var changedFiles []string
+	changedFiles := make([]string, 0, len(files))
 
 	for filename, content := range files {
 		filePath := filepath.Join(g.workingDir, filename)
@@ -344,7 +350,7 @@ func (g *Operations) writeFiles(files map[string]string) ([]string, error) {
 		}
 
 		// Write file content
-		if err := ioutil.WriteFile(filePath, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return nil, fmt.Errorf("failed to write file %s: %w", filename, err)
 		}
 
@@ -617,7 +623,7 @@ func GenerateCommitMessage(imageName, imageTag, operation string) string {
 	}
 }
 
-// GetOperationStats returns statistics about Git operations
+// OperationStats contains statistics about Git operations.
 type OperationStats struct {
 	TotalOperations   int       `json:"totalOperations"`
 	SuccessfulOps     int       `json:"successfulOps"`

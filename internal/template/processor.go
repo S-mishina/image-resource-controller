@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package template provides Go template processing for Kubernetes resource generation.
 package template
 
 import (
@@ -23,10 +24,14 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"sigs.k8s.io/yaml"
 )
 
-// TemplateVars represents all available template variables according to the design document
+// TemplateVars represents all available template variables according to the design document.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type TemplateVars struct {
 	// Basic information
 	ImageTag    string `json:"imageTag"`    // "v1.2.3"
@@ -307,12 +312,12 @@ func createFuncMap() template.FuncMap {
 		// String manipulation functions
 		"toLower": strings.ToLower,
 		"toUpper": strings.ToUpper,
-		"title":   strings.Title,
+		"title":   cases.Title(language.English).String,
 		"trim":    strings.TrimSpace,
 
 		// String replacement functions
-		"replace": func(old, new, s string) string {
-			return strings.ReplaceAll(s, old, new)
+		"replace": func(old, newStr, s string) string {
+			return strings.ReplaceAll(s, old, newStr)
 		},
 
 		// Validation functions
@@ -405,7 +410,9 @@ func (p *Processor) GetProcessingStats(templateContent string, result []byte, va
 	}
 }
 
-// TemplateValidationResult represents the result of template validation
+// TemplateValidationResult represents the result of template validation.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type TemplateValidationResult struct {
 	Valid      bool     `json:"valid"`
 	Errors     []string `json:"errors,omitempty"`
@@ -443,7 +450,7 @@ func (p *Processor) AnalyzeTemplate(templateContent string, vars TemplateVars) T
 }
 
 // analyzeVariableUsage analyzes which variables are used/unused in the template
-func (p *Processor) analyzeVariableUsage(templateContent string, vars TemplateVars, result *TemplateValidationResult) {
+func (p *Processor) analyzeVariableUsage(templateContent string, _ TemplateVars, result *TemplateValidationResult) {
 	// Find all template variable references
 	variablePattern := regexp.MustCompile(`\{\{\s*\.([A-Za-z][A-Za-z0-9_]*)\s*\}\}`)
 	matches := variablePattern.FindAllStringSubmatch(templateContent, -1)

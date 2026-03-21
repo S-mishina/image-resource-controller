@@ -33,6 +33,7 @@ import (
 // RegistryType represents the type of container registry
 type RegistryType string
 
+// RegistryTypeECR is the registry type constant for Amazon ECR.
 const RegistryTypeECR RegistryType = "ecr"
 
 // ImageInfo represents information about a container image
@@ -87,7 +88,9 @@ type ImageRegistry interface {
 	HealthCheck(ctx context.Context) error
 }
 
-// ECRRegistry implements the ImageRegistry interface for Amazon ECR
+// ECRRegistry implements the ImageRegistry interface for Amazon ECR.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type ECRRegistry struct {
 	ecrClient *ecr.Client
 	stsClient *sts.Client
@@ -268,7 +271,7 @@ func buildFullImageURL(accountID, region, repositoryName, tag string) string {
 }
 
 // extractAccountID extracts AWS account ID from AWS config
-func extractAccountID(awsConfig aws.Config) string {
+func extractAccountID(_ aws.Config) string {
 	// This will be updated to use actual STS call in getAccountID method
 	return "123456789012"
 }

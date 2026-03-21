@@ -24,7 +24,9 @@ import (
 	"strings"
 	"time"
 
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/gomega"
 
 	"github.com/S-mishina/image-resource-controller/test/utils"
@@ -87,7 +89,7 @@ var _ = Describe("Generic Registry E2E", Ordered, func() {
 		Expect(utils.CreateKindClusterWithRegistry(kindClusterName)).To(Succeed())
 
 		By("setting KIND_CLUSTER env for image loading")
-		os.Setenv("KIND_CLUSTER", kindClusterName)
+		Expect(os.Setenv("KIND_CLUSTER", kindClusterName)).To(Succeed())
 
 		By("building the controller images")
 		cmd := exec.Command("make", "docker-build")
@@ -155,10 +157,16 @@ var _ = Describe("Generic Registry E2E", Ordered, func() {
 				return nil
 			}
 		}
-		EventuallyWithOffset(1, verifyControllerUp("image-detection-controller"), 2*time.Minute, 5*time.Second).Should(Succeed())
+		EventuallyWithOffset(
+			1, verifyControllerUp("image-detection-controller"),
+			2*time.Minute, 5*time.Second,
+		).Should(Succeed())
 
 		By("waiting for creation controller to be ready")
-		EventuallyWithOffset(1, verifyControllerUp("resource-creation-controller"), 2*time.Minute, 5*time.Second).Should(Succeed())
+		EventuallyWithOffset(
+			1, verifyControllerUp("resource-creation-controller"),
+			2*time.Minute, 5*time.Second,
+		).Should(Succeed())
 	})
 
 	AfterAll(func() {
@@ -326,7 +334,7 @@ var _ = Describe("Generic Registry E2E", Ordered, func() {
       order: desc`))
 
 			// Descending order: the first detected should be the "latest" alphabetically
-			Expect(len(tags)).To(BeNumerically(">", 0))
+			Expect(tags).ToNot(BeEmpty())
 			// All tags should be present (alphabetical doesn't filter, just sorts)
 			// The policy processor picks the top result(s)
 		})

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package generic provides a Docker Registry HTTP API V2 client.
 package generic
 
 import (
@@ -27,7 +28,7 @@ import (
 	"time"
 )
 
-// RegistryType constant for generic registry
+// RegistryTypeGeneric is the registry type constant for generic registry.
 const RegistryTypeGeneric = "generic"
 
 // ImageInfo represents information about a container image
@@ -71,7 +72,9 @@ type ImageRegistry interface {
 	HealthCheck(ctx context.Context) error
 }
 
-// GenericRegistry implements ImageRegistry for Docker Registry HTTP API V2
+// GenericRegistry implements ImageRegistry for Docker Registry HTTP API V2.
+//
+//nolint:revive // stuttering name is acceptable for clarity
 type GenericRegistry struct {
 	httpClient  *http.Client
 	registryURL string
@@ -108,7 +111,7 @@ func (g *GenericRegistry) ValidateConfig(config RegistryConfig) error {
 }
 
 // Authenticate sets up authentication for the registry
-func (g *GenericRegistry) Authenticate(ctx context.Context, authConfig AuthConfig) error {
+func (g *GenericRegistry) Authenticate(_ context.Context, authConfig AuthConfig) error {
 	if authConfig.Username != "" {
 		g.username = authConfig.Username
 		g.password = authConfig.Password
@@ -140,7 +143,7 @@ func (g *GenericRegistry) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("registry health check failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("registry returned status %d", resp.StatusCode)
@@ -166,7 +169,7 @@ func (g *GenericRegistry) ScanRepository(ctx context.Context, config RegistryCon
 	}
 
 	// Build ImageInfo for each tag
-	var images []ImageInfo
+	images := make([]ImageInfo, 0, len(tags))
 	for _, tag := range tags {
 		img := ImageInfo{
 			Name:    config.RepositoryName,
@@ -188,7 +191,7 @@ func (g *GenericRegistry) ScanRepository(ctx context.Context, config RegistryCon
 }
 
 // FindRepositoriesByPattern finds repositories matching a pattern
-func (g *GenericRegistry) FindRepositoriesByPattern(ctx context.Context, region, pattern string, maxRepos int32) ([]string, error) {
+func (g *GenericRegistry) FindRepositoriesByPattern(ctx context.Context, _, pattern string, maxRepos int32) ([]string, error) {
 	if g.registryURL == "" {
 		return nil, fmt.Errorf("registry URL not set - call SetRegistryURL or ScanRepository first")
 	}
@@ -236,7 +239,7 @@ func (g *GenericRegistry) ScanRepositoriesByPattern(ctx context.Context, region,
 }
 
 // ScanAllRepositoriesByImageName scans all repositories to find images matching image name
-func (g *GenericRegistry) ScanAllRepositoriesByImageName(ctx context.Context, region, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
+func (g *GenericRegistry) ScanAllRepositoriesByImageName(ctx context.Context, _, imageNamePattern string, maxRepos int32) ([]ImageInfo, error) {
 	if g.registryURL == "" {
 		return nil, fmt.Errorf("registry URL not set")
 	}
@@ -347,7 +350,7 @@ func (g *GenericRegistry) listRepositories(ctx context.Context, registryURL stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to list repositories: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("catalog request returned status %d", resp.StatusCode)
@@ -374,7 +377,7 @@ func (g *GenericRegistry) listTags(ctx context.Context, registryURL, repository 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tags: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tags request returned status %d", resp.StatusCode)
@@ -402,7 +405,7 @@ func (g *GenericRegistry) getManifestInfo(ctx context.Context, registryURL, repo
 	if err != nil {
 		return "", 0, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", 0, fmt.Errorf("manifest request returned status %d", resp.StatusCode)

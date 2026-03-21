@@ -21,7 +21,9 @@ import (
 	"os/exec"
 	"time"
 
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/ginkgo/v2"
+	//nolint:revive // dot imports are idiomatic for Ginkgo/Gomega
 	. "github.com/onsi/gomega"
 
 	"github.com/S-mishina/image-resource-controller/test/utils"
