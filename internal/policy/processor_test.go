@@ -43,7 +43,7 @@ func TestApplyPatternPolicyWithPrefix(t *testing.T) {
 		{
 			name: "Extract environment prefix",
 			policy: automationv1beta1.PatternPolicy{
-				Regex:         "^(dev|staging|prod)-v\\d+\\.\\d+\\.\\d+$",
+				Regex:         `^(dev|staging|prod)-v\d+\.\d+\.\d+$`,
 				ExtractPrefix: true,
 			},
 			expectedCount: 3,
@@ -67,7 +67,7 @@ func TestApplyPatternPolicyWithPrefix(t *testing.T) {
 		{
 			name: "No prefix extraction",
 			policy: automationv1beta1.PatternPolicy{
-				Regex:         "^(dev|staging|prod)-v\\d+\\.\\d+\\.\\d+$",
+				Regex:         `^(dev|staging|prod)-v\d+\.\d+\.\d+$`,
 				ExtractPrefix: false,
 			},
 			expectedCount:  3,
@@ -123,7 +123,7 @@ func TestApplyPatternPolicyWithPrefixEdgeCases(t *testing.T) {
 				{Tag: "v1.0.0"},
 			},
 			policy: automationv1beta1.PatternPolicy{
-				Regex:         "^v\\d+\\.\\d+\\.\\d+$", // No capture groups
+				Regex:         `^v\d+\.\d+\.\d+$`, // No capture groups
 				ExtractPrefix: true,
 			},
 			want: nil, // Should return error due to no capture groups
@@ -134,7 +134,7 @@ func TestApplyPatternPolicyWithPrefixEdgeCases(t *testing.T) {
 				{Tag: "dev-feature-v1.0.0"},
 			},
 			policy: automationv1beta1.PatternPolicy{
-				Regex:         "^(dev|staging|prod)-(feature|hotfix)-v\\d+\\.\\d+\\.\\d+$",
+				Regex:         `^(dev|staging|prod)-(feature|hotfix)-v\d+\.\d+\.\d+$`,
 				ExtractPrefix: true,
 			},
 			want: map[string]string{
