@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+      draft:
+        description: 'Create as draft'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    permissions:
+      contents: write
+      packages: write
+    uses: S-mishina/reusable-workflows/.github/workflows/release.yml@main
+    with:
+      version: ${{ inputs.version }}
+      prerelease: ${{ inputs.prerelease }}
+      draft: ${{ inputs.draft }}
+      environment: release
+      pre-release-steps: >-
+        make build-controllers-installer
+      release-assets: dist/controllers-install.yaml
+      install-instructions: >-
+        ```kubectl apply --server-side -f
+        https://github.com/S-mishina/image-resource-controller/releases/download/${VERSION}/controllers-install.yaml```
+      docker-build: true
+      docker-images: >-
+        [
+          {"name":"s-mishina/image-detection-controller","dockerfile":"Dockerfile.detection"},
+          {"name":"s-mishina/resource-creation-controller","dockerfile":"Dockerfile.creation"}
+        ]
+      docker-metadata-tags: |
+        type=raw,value=${{ inputs.version }}
+        type=sha
+        type=raw,value=latest,enable=${{ !inputs.prerelease }}

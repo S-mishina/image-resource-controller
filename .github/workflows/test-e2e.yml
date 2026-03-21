@@ -1,0 +1,61 @@
+name: E2E Tests
+
+on:
+  push:
+    paths-ignore:
+      - '*.md'
+  pull_request:
+    paths-ignore:
+      - '*.md'
+
+jobs:
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install the latest version of kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-$(go env GOARCH)
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Verify kind installation
+        run: kind version
+
+      - name: Create Docker network for Kind
+        run: docker network create kind || true
+
+      - name: Start E2E infrastructure (registry + Gitea)
+        run: docker compose -f test/e2e/docker-compose.yaml up -d --wait
+
+      - name: Verify infrastructure is ready
+        run: |
+          curl -s --retry 10 --retry-delay 3 --retry-connrefused http://localhost:3000 > /dev/null
+          curl -s --retry 10 --retry-delay 3 --retry-connrefused http://localhost:5001/v2/ > /dev/null
+
+      - name: Running E2E Tests
+        run: |
+          go mod tidy
+          make test-e2e-generic
+
+      - name: Dump controller logs on failure
+        if: failure()
+        run: |
+          echo "=== Detection Controller ==="
+          kubectl logs -l control-plane=image-detection-controller -n image-resource-controller-system --tail=100 2>/dev/null || echo "No logs available"
+          echo "=== Creation Controller ==="
+          kubectl logs -l control-plane=resource-creation-controller -n image-resource-controller-system --tail=100 2>/dev/null || echo "No logs available"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kind delete cluster --name e2e-generic-registry 2>/dev/null || true
+          docker compose -f test/e2e/docker-compose.yaml down -v 2>/dev/null || true

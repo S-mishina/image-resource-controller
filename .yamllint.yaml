@@ -5,6 +5,7 @@ ignore:
   - config/crd/bases/
   - config/rbac/
   - config/manager/
+  - .github/workflows/
   - bin/
 
 rules:
