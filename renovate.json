@@ -2,5 +2,26 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "separateMinorPatch": true,
+  "packageRules": [
+    {
+      "matchPackagePrefixes": [
+        "k8s.io/",
+        "sigs.k8s.io/"
+      ],
+      "groupName": "kubernetes"
+    },
+    {
+      "matchPackagePrefixes": [
+        "github.com/aws/aws-sdk-go-v2"
+      ],
+      "groupName": "aws-sdk-go-v2"
+    },
+    {
+      "matchUpdateTypes": ["minor", "major"],
+      "matchPackageNames": ["go", "sigs.k8s.io/controller-runtime"],
+      "enabled": false
+    }
   ]
 }
