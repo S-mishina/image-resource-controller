@@ -1,6 +1,35 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":separateMultipleMajorReleases",
+    ":separateMinorPatch"
+  ],
+  "packageRules": [
+    {
+      "groupName": "go-runtime",
+      "matchManagers": ["gomod", "dockerfile", "mise"],
+      "matchPackageNames": ["go", "golang", "golang/go"]
+    },
+    {
+      "groupName": "kubernetes",
+      "matchPackageNames": [
+        "k8s.io/{/,}**",
+        "sigs.k8s.io/{/,}**"
+      ]
+    },
+    {
+      "groupName": "aws-sdk-go-v2",
+      "matchPackageNames": [
+        "github.com/aws/aws-sdk-go-v2{/,}**"
+      ]
+    },
+    {
+      "groupName": "ginkgo-gomega",
+      "matchPackageNames": [
+        "github.com/onsi/ginkgo/v2",
+        "github.com/onsi/gomega"
+      ]
+    }
   ]
 }
