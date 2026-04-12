@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.49.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.0
 	github.com/go-git/go-git/v5 v5.16.2
-	github.com/onsi/ginkgo/v2 v2.20.1
+	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.37.0
