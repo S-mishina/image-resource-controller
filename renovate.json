@@ -3,7 +3,7 @@
   "extends": [
     "config:recommended",
     ":separateMultipleMajorReleases",
-    ":separateMinorPatch"
+    ":separatePatchReleases"
   ],
   "packageRules": [
     {
